@@ -236,10 +236,10 @@ private fun AutoPermissions(mode: AutoMode, tick: Int, onChanged: () -> Unit) {
     val need = when {
         mode == AutoMode.DRIVING && !AutoStart.hasActivityPermission(ctx) && Build.VERSION.SDK_INT >= 29 ->
             Need(Manifest.permission.ACTIVITY_RECOGNITION,
-                "Appen behöver \"Fysisk aktivitet\" för att märka när du åker.", "Tillåt fysisk aktivitet")
+                "För att märka när du sitter i en bil behöver appen tillgång till \"Fysisk aktivitet\".", "Ge tillgång")
         mode == AutoMode.CAR && !AutoStart.hasBluetoothPermission(ctx) && Build.VERSION.SDK_INT >= 31 ->
             Need(Manifest.permission.BLUETOOTH_CONNECT,
-                "Appen behöver \"Enheter i närheten\" för att se när bilen kopplas in.", "Tillåt enheter i närheten")
+                "För att se när telefonen kopplas till bilen behöver appen tillgång till \"Enheter i närheten\".", "Ge tillgång")
         !AutoStart.hasBackgroundLocation(ctx) && Build.VERSION.SDK_INT >= 29 ->
             Need(Manifest.permission.ACCESS_BACKGROUND_LOCATION,
                 "För att starta medan telefonen ligger i fickan behöver appen plats \"Tillåt alltid\". " +
