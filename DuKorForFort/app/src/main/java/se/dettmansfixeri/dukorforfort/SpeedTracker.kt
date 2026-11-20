@@ -57,6 +57,9 @@ data class Settings(
     val beep: Boolean = true,
     val vibrate: Boolean = true,
     val heckle: HeckleMode = HeckleMode.NICE,
+    /** Talmotor (paketnamn) och röst. null = standardmotorn / bästa svenska rösten. */
+    val voiceEngine: String? = null,
+    val voiceName: String? = null,
     val auto: AutoMode = AutoMode.OFF,
     val carAddress: String? = null,
     val carName: String? = null,
@@ -132,6 +135,8 @@ object SpeedTracker {
             beep = p.getBoolean("pip", true),
             vibrate = p.getBoolean("vibrera", true),
             heckle = HeckleMode.fromName(p.getString("forolampning", null)),
+            voiceEngine = p.getString("rost_motor", null),
+            voiceName = p.getString("rost", null),
             auto = AutoMode.fromName(p.getString("auto", null)),
             carAddress = p.getString("bil_adress", null),
             carName = p.getString("bil_namn", null),
@@ -142,14 +147,23 @@ object SpeedTracker {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString("fordon", s.vehicle.name).putBoolean("slap", s.trailer)
             .putInt("marginal", s.margin).putBoolean("pip", s.beep).putBoolean("vibrera", s.vibrate).putString("forolampning", s.heckle.name)
+            .putString("rost_motor", s.voiceEngine).putString("rost", s.voiceName)
             .putString("auto", s.auto.name).putString("bil_adress", s.carAddress).putString("bil_namn", s.carName)
             .apply()
+        val old = _settings.value
         _settings.value = s
+        // Ny talmotor kräver en ny röst-instans; ny röst räcker att byta.
+        heckler?.let { h ->
+            if (s.voiceEngine != h.engine) { h.release(); heckler = Heckler(appContext(ctx), s.voiceEngine, s.voiceName) }
+            else if (s.voiceName != old.voiceName) h.setVoiceName(s.voiceName)
+        }
         lastFix?.let { onLocation(it) } // räkna om direkt
     }
 
+    private fun appContext(ctx: Context): Context = ctx.applicationContext
+
     private fun warner(ctx: Context): Warner {
-        if (heckler == null) heckler = Heckler(ctx.applicationContext)
+        if (heckler == null) heckler = Heckler(ctx.applicationContext, _settings.value.voiceEngine, _settings.value.voiceName)
         return warner ?: Warner(ctx.applicationContext).also { warner = it }
     }
 

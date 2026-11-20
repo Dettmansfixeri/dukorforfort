@@ -6,6 +6,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -65,9 +66,30 @@ object SpeedFacts {
  * Pratar med föraren när man kör för fort: förolämpningar blandat med uträknade fakta,
  * grövre för varje gång. Första efter 5 s över gränsen, sedan 5 s efter att förra meningen är klar.
  */
-class Heckler(ctx: Context) {
+/** [engine] = talmotorns paketnamn (null = telefonens standard), [initialVoice] = vald röst (null = bästa svenska). */
+class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = null) {
 
     companion object {
+        const val SAMPLE = "Där du hade stannat i 70 kör du nu på i 28 kilometer i timmen. Grattis, du är officiellt en fartdåre."
+
+        fun isSwedish(v: Voice) = v.locale.language == "sv"
+        fun needsNetwork(v: Voice) = v.isNetworkConnectionRequired ||
+                TextToSpeech.Engine.KEY_FEATURE_NETWORK_SYNTHESIS in v.features.orEmpty()
+        fun notInstalled(v: Voice) = TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED in v.features.orEmpty()
+
+        fun qualityLabel(q: Int) = when {
+            q >= Voice.QUALITY_VERY_HIGH -> "Mycket hög"
+            q >= Voice.QUALITY_HIGH -> "Hög"
+            q >= Voice.QUALITY_NORMAL -> "Normal"
+            q >= Voice.QUALITY_LOW -> "Låg"
+            else -> "Mycket låg"
+        }
+
+        /** Bästa svenska rösten som finns i telefonen och inte kräver internet. */
+        fun bestSwedish(all: List<Voice>): Voice? = all
+            .filter { isSwedish(it) && !needsNetwork(it) && !notInstalled(it) }
+            .maxWithOrNull(compareBy<Voice>({ it.quality }, { if (it.locale.country == "SE") 1 else 0 }))
+
         private const val FIRST_DELAY = 5000L
         private const val GAP = 5000L
 
@@ -142,11 +164,14 @@ class Heckler(ctx: Context) {
 
     @Volatile private var speaking = false
     @Volatile private var lastDone = 0L
-    private val tts: TextToSpeech = TextToSpeech(ctx.applicationContext) { status ->
-        _ready.value = status == TextToSpeech.SUCCESS && setSwedish()
-    }
+    @Volatile private var restoreVoice = false
+    private var voiceName: String? = initialVoice
 
-    private fun setSwedish(): Boolean {
+    private val tts: TextToSpeech = TextToSpeech(ctx.applicationContext, { status ->
+        _ready.value = status == TextToSpeech.SUCCESS && setup()
+    }, engine)
+
+    private fun setup(): Boolean {
         val r = tts.setLanguage(Locale("sv", "SE"))
         tts.setAudioAttributes(attrs)
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -155,12 +180,48 @@ class Heckler(ctx: Context) {
             @Deprecated("Deprecated in Java")
             override fun onError(id: String?) = finished()
         })
-        return r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED
+        applyVoice()
+        val swedish = r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED
+        return swedish || voiceName != null
+    }
+
+    // ---------- Röster ----------
+
+    /** Alla talmotorer i telefonen (Google, Samsung …). */
+    fun engines(): List<TextToSpeech.EngineInfo> = try { tts.engines } catch (e: Exception) { emptyList() }
+
+    /** Alla röster i den här motorn. */
+    fun voices(): List<Voice> = try { tts.voices?.toList().orEmpty() } catch (e: Exception) { emptyList() }
+
+    /** Rösten som faktiskt används just nu. */
+    fun currentVoice(): Voice? = try { tts.voice } catch (e: Exception) { null }
+
+    fun setVoiceName(name: String?) {
+        voiceName = name
+        if (_ready.value == true) applyVoice()
+    }
+
+    /** Vald röst, annars den bästa svenska som inte kräver internet. */
+    private fun applyVoice() {
+        val all = voices()
+        val pick = all.firstOrNull { it.name == voiceName } ?: bestSwedish(all)
+        if (pick != null) try { tts.voice = pick } catch (e: Exception) { }
+    }
+
+    /** Provar en röst utan att välja den. Den valda rösten används igen efteråt. */
+    fun tryVoice(v: Voice, text: String) {
+        if (_ready.value == null) return
+        try { tts.voice = v } catch (e: Exception) { return }
+        restoreVoice = true
+        speaking = true
+        audio.requestAudioFocus(focus)
+        tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "prov-${System.nanoTime()}")
     }
 
     private fun finished() {
         speaking = false
         lastDone = System.currentTimeMillis()
+        if (restoreVoice) { restoreVoice = false; applyVoice() }
         audio.abandonAudioFocusRequest(focus)
     }
 

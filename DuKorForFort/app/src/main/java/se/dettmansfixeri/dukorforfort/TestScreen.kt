@@ -4,6 +4,7 @@ import android.content.Intent
 import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -88,15 +89,16 @@ fun TestScreen(onClose: () -> Unit) {
 
             // ---------- Röst ----------
             Section("Röst")
-            val voice = remember { SpeedTracker.prepareVoice(ctx) }
+            val voice = remember(settings.voiceEngine) { SpeedTracker.prepareVoice(ctx) }
             val voiceReady by voice.ready.collectAsStateWithLifecycle()
             var voiceN by remember { mutableIntStateOf(0) }
             Info("Läge", settings.heckle.label)
-            Info("Svensk röst", when (voiceReady) {
+            Info("Status", when (voiceReady) {
                 null -> "startar…"
-                true -> "finns"
-                false -> "saknas – installera svensk röst i telefonens talsyntes"
+                true -> "redo"
+                false -> "ingen svensk röst – välj en nedan eller installera i telefonens talsyntes"
             })
+            Info("Röst nu", voice.currentVoice()?.name ?: "–")
             val testSpeed = speed.toInt().coerceAtLeast(signed + 1)
             Text("Nästa: \"${Heckler.line(voiceN, if (settings.heckle == HeckleMode.OFF) HeckleMode.NICE else settings.heckle, testSpeed, signed)}\"",
                 fontSize = 13.sp, color = dim)
@@ -109,6 +111,8 @@ fun TestScreen(onClose: () -> Unit) {
                 OutlinedButton(onClick = { voiceN = 0 }) { Text("Börja om", color = Color.White) }
             }
             Text("Med \"Låtsas köra\" på börjar den prata själv efter 5 s över gränsen.", fontSize = 13.sp, color = dim)
+
+            VoicePicker(voice, voiceReady, settings)
 
             // ---------- Automatik ----------
             Section("Automatisk start")
@@ -166,6 +170,69 @@ fun TestScreen(onClose: () -> Unit) {
             Info("Data", (dataState as? DataManager.State.Ready)?.let { DataManager.prettyVersion(it.version) } ?: "–")
             if (!state.running) Text("Starta bevakningen för att se GPS-info.", fontSize = 13.sp, color = dim)
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/** Alla talmotorer och röster i telefonen – prova och välj. */
+@Composable
+private fun VoicePicker(voice: Heckler, ready: Boolean?, settings: Settings) {
+    val ctx = LocalContext.current
+    val dim = Color.White.copy(alpha = 0.65f)
+    var allLanguages by remember { mutableStateOf(false) }
+
+    // Talmotorer
+    val engines = remember(ready) { voice.engines() }
+    if (engines.size > 1) {
+        Text("Talmotor", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 12.dp))
+        val current = settings.voiceEngine
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            FilterChip(selected = current == null, label = { Text("Standard") },
+                onClick = { SpeedTracker.setSettings(ctx, settings.copy(voiceEngine = null, voiceName = null)) })
+            engines.forEach { e ->
+                FilterChip(selected = current == e.name, label = { Text(e.label) },
+                    onClick = { SpeedTracker.setSettings(ctx, settings.copy(voiceEngine = e.name, voiceName = null)) })
+            }
+        }
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+        Text("Röster", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+        Text("Alla språk", fontSize = 13.sp, color = dim)
+        Spacer(Modifier.width(6.dp))
+        Switch(checked = allLanguages, onCheckedChange = { allLanguages = it })
+    }
+    if (ready == null) { Text("Startar talsyntesen…", fontSize = 13.sp, color = dim); return }
+
+    val voices = remember(ready, allLanguages, settings.voiceEngine) {
+        voice.voices()
+            .filter { allLanguages || Heckler.isSwedish(it) }
+            .sortedWith(compareBy<android.speech.tts.Voice>({ !Heckler.isSwedish(it) }, { Heckler.needsNetwork(it) }, { -it.quality }, { it.name }))
+    }
+    val auto = Heckler.bestSwedish(voice.voices())
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+        RadioButton(selected = settings.voiceName == null,
+            onClick = { SpeedTracker.setSettings(ctx, settings.copy(voiceName = null)) })
+        Text("Automatiskt (bästa svenska): ${auto?.name ?: "ingen hittad"}", fontSize = 14.sp, color = Color.White)
+    }
+    if (voices.isEmpty()) Text("Inga röster hittades.", fontSize = 13.sp, color = dim)
+    voices.forEach { v ->
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+            RadioButton(selected = settings.voiceName == v.name,
+                onClick = { SpeedTracker.setSettings(ctx, settings.copy(voiceName = v.name)) })
+            Column(Modifier.weight(1f)) {
+                Text(v.name, fontSize = 14.sp, color = Color.White)
+                val tags = buildList {
+                    add(v.locale.displayName)
+                    add("kvalitet: ${Heckler.qualityLabel(v.quality)}")
+                    if (Heckler.needsNetwork(v)) add("kräver internet – texten skickas till motorns tillverkare")
+                    if (Heckler.notInstalled(v)) add("inte nedladdad")
+                }
+                Text(tags.joinToString(" · "), fontSize = 12.sp, color = dim)
+            }
+            TextButton(onClick = {
+                voice.tryVoice(v, if (Heckler.isSwedish(v)) Heckler.SAMPLE else "Hello! You are driving too fast, idiot.")
+            }) { Text("Prova") }
         }
     }
 }
