@@ -80,17 +80,17 @@
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) hero.classList.add("calm");
   let raf = 0, timers = [];
 
-  // Texten kommer direkt när hastigheten går över gränsen (71), tavlan strax efter.
+  // Texten kommer direkt när hastigheten går över gränsen (71).
   function overLimit() {
-    if (hero.classList.contains("show-text")) return;
     hero.classList.add("over", "show-text");
-    timers.push(setTimeout(() => hero.classList.add("show-plate"), 450));
-    timers.push(setTimeout(() => hero.classList.add("done"), 1500));
   }
 
+  // IDIOT-tavlan flyger in först när räknaren stannat på 73.
   function finish() {
     speed.textContent = TARGET;
     overLimit();
+    timers.push(setTimeout(() => hero.classList.add("show-plate"), 350));
+    timers.push(setTimeout(() => hero.classList.add("done"), 1400));
   }
 
   function play() {
