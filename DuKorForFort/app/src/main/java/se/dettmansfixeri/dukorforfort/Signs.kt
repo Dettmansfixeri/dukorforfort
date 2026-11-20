@@ -39,18 +39,29 @@ object SignPainter {
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         p.color = SIGN_RED; c.drawCircle(50f * u, 50f * u, 50f * u, p)
         p.color = SIGN_YELLOW; c.drawCircle(50f * u, 50f * u, 38.4f * u, p)
-        p.typeface = tf
-        p.color = textColor
-        p.textAlign = Paint.Align.CENTER
+        val tp = signTextPaint(u, text, tf).apply { color = textColor }
+        // Baslinjen läggs så att siffrornas höjd (≈0.8 em i Tratex) blir centrerad.
+        c.drawText(text, 50f * u, (50f + 0.4f * tp.textSize / u) * u, tp)
+    }
+
+    private fun signTextPaint(u: Float, text: String, tf: Typeface?) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = tf
+        textAlign = Paint.Align.CENTER
         // Skyltsiffrorna är smalare än Tratex normalbredd (scaleX 0.766).
         // Tresiffriga (100–120) görs lite lägre så de ryms i den gula plattan.
         val threeDigits = text.length >= 3
-        val textSize = if (threeDigits) 48f else 56.8f
+        textSize = (if (threeDigits) 48f else 56.8f) * u
         val maxWidth = if (threeDigits) 60f else 66f
-        p.textSize = textSize * u
-        p.textScaleX = minOf(0.766f, maxWidth * u / p.measureText(text))
-        // Baslinjen läggs så att siffrornas höjd (≈0.8 em i Tratex) blir centrerad.
-        c.drawText(text, 50f * u, (50f + 0.4f * textSize) * u, p)
+        textScaleX = minOf(0.766f, maxWidth * u / measureText(text))
+    }
+
+    /** Var på skylten (x-led, pixlar) sista siffran sitter – den gömda nollan. */
+    fun signLastCharRange(size: Float, text: String, tf: Typeface?): ClosedFloatingPointRange<Float> {
+        val u = size / 100f
+        val p = signTextPaint(u, text, tf)
+        val right = 50f * u + p.measureText(text) / 2f
+        val last = p.measureText(text.takeLast(1))
+        return (right - last - 4f * u)..(right + 6f * u)
     }
 
     private fun platePaint(u: Float, text: String, tf: Typeface?) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -93,10 +104,30 @@ private fun rememberTratex(): Typeface? {
     return remember { SignPainter.tratex(ctx) }
 }
 
+/** Fem tryck med högst 2 s mellanrum inom [hit] anropar [onSecret]. */
 @Composable
-fun SpeedSign(limit: Int?, stale: Boolean, size: Dp = 190.dp) {
+private fun secretTaps(key: Any?, onSecret: (() -> Unit)?, hit: (x: Float, width: Float) -> Boolean): Modifier {
+    if (onSecret == null) return Modifier
+    val taps = remember { ArrayDeque<Long>() }
+    return Modifier.pointerInput(key) {
+        detectTapGestures { pos ->
+            if (hit(pos.x, size.width.toFloat())) {
+                val now = SystemClock.uptimeMillis()
+                if (taps.isNotEmpty() && now - taps.last() > 2000) taps.clear()
+                taps.addLast(now)
+                if (taps.size >= 5) { taps.clear(); onSecret() }
+            }
+        }
+    }
+}
+
+/** Hastighetsskylten. Fem tryck på sista siffran (nollan) anropar [onSecret]. */
+@Composable
+fun SpeedSign(limit: Int?, stale: Boolean, size: Dp = 190.dp, onSecret: (() -> Unit)? = null) {
     val tf = rememberTratex()
-    androidx.compose.foundation.Canvas(Modifier.size(size)) {
+    val text = limit?.toString() ?: "?"
+    val tap = secretTaps(text, onSecret) { x, w -> x in SignPainter.signLastCharRange(w, text, tf) }
+    androidx.compose.foundation.Canvas(Modifier.size(size).then(tap)) {
         SignPainter.drawSpeedSign(
             drawContext.canvas.nativeCanvas, this.size.width, limit?.toString() ?: "?", tf,
             if (stale) android.graphics.Color.GRAY else android.graphics.Color.BLACK
@@ -108,21 +139,8 @@ fun SpeedSign(limit: Int?, stale: Boolean, size: Dp = 190.dp) {
 @Composable
 fun UnderSign(text: String, width: Dp = 190.dp, onSecret: (() -> Unit)? = null) {
     val tf = rememberTratex()
-    val taps = remember { ArrayDeque<Long>() }
-    var mod = Modifier.width(width).height(width * 0.4f)
-    if (onSecret != null) {
-        mod = mod.pointerInput(text) {
-            detectTapGestures { pos ->
-                if (pos.x in SignPainter.lastCharRange(size.width.toFloat(), text, tf)) {
-                    // Upp till 2 s mellan varje tryck, annars börjar räkningen om.
-                    val now = SystemClock.uptimeMillis()
-                    if (taps.isNotEmpty() && now - taps.last() > 2000) taps.clear()
-                    taps.addLast(now)
-                    if (taps.size >= 5) { taps.clear(); onSecret() }
-                }
-            }
-        }
-    }
+    val mod = Modifier.width(width).height(width * 0.4f)
+        .then(secretTaps(text, onSecret) { x, w -> x in SignPainter.lastCharRange(w, text, tf) })
     androidx.compose.foundation.Canvas(mod) {
         SignPainter.drawPlate(drawContext.canvas.nativeCanvas, this.size.width, text, tf)
     }

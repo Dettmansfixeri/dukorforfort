@@ -326,11 +326,14 @@ fun warningBackground(tooFast: Boolean): Color {
     return if (tooFast) lerp(Color(0xFF7F0000), Color(0xFFE53935), t) else Color(0xFF101418)
 }
 
-/** Skylten, ev. förklaring och IDIOT-tavlan. */
+/**
+ * Skylten, ev. förklaring och IDIOT-tavlan. Tavlan syns bara när man kör för fort,
+ * men platsen hålls så att skylten inte hoppar. Testsidan: fem tryck på nollan i skylten.
+ */
 @Composable
 fun SignBlock(state: UiState, signSize: androidx.compose.ui.unit.Dp, onSecret: (() -> Unit)? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        SpeedSign(state.limitKmh, state.limitStale, signSize)
+        SpeedSign(state.limitKmh, state.limitStale, signSize, onSecret)
         val signed = state.signedKmh
         if (state.reason != null && signed != null && signed != state.limitKmh) {
             Text(
@@ -339,7 +342,8 @@ fun SignBlock(state: UiState, signSize: androidx.compose.ui.unit.Dp, onSecret: (
             )
         }
         Spacer(Modifier.height(8.dp))
-        UnderSign("IDIOT", signSize, onSecret)
+        if (state.tooFast) UnderSign("IDIOT", signSize)
+        else Spacer(Modifier.height(signSize * 0.4f))
     }
 }
 
