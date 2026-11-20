@@ -5,6 +5,7 @@
 #   FTP_USERNAME   FTP-kontots användarnamn
 #   FTP_PASSWORD   FTP-kontots lösenord
 # FTP-kontot ska ha sajtens mapp (public_html för dukorforfort.dettmansfixeri.se) som sin rot.
+# FTP_USERNAME är hela namnet som det står i DirectAdmin, t.ex. namn@dukorforfort.dettmansfixeri.se.
 name: Webbsida
 
 on:
