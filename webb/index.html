@@ -75,7 +75,7 @@
   const SLOW_FROM = 67;   // härifrån räknas det en km/h i taget
   const FAST_MS = 2200;   // 0 -> 66
   // Paus före varje km/h från 67: saktar in mot 70, sedan segt förbi gränsen.
-  const STEPS = { 67: 60, 68: 280, 69: 370, 70: 460, 71: 600, 72: 550, 73: 550 };
+  const STEPS = { 67: 200, 68: 450, 69: 650, 70: 850, 71: 1000, 72: 900, 73: 900 };
   const hero = document.getElementById("hero");
   const speed = document.getElementById("speed");
   let raf = 0, timers = [];
