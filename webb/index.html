@@ -82,6 +82,7 @@
 
   // Texten kommer direkt när hastigheten går över gränsen (71).
   function overLimit() {
+    hero.classList.remove("at-limit");
     hero.classList.add("over", "show-text");
   }
 
@@ -97,12 +98,14 @@
     cancelAnimationFrame(raf);
     timers.forEach(clearTimeout);
     timers = [];
-    hero.classList.remove("over", "show-text", "show-plate", "done");
+    hero.classList.remove("at-limit", "over", "show-text", "show-plate", "done");
     const start = performance.now();
     const tick = (now) => {
       const t = Math.min(1, (now - start) / FAST_MS);
       const eased = 1 - Math.pow(1 - t, 2);            // snabbt, bromsar lite in mot 70
-      speed.textContent = Math.round(eased * LIMIT);
+      const v = Math.round(eased * LIMIT);
+      speed.textContent = v;
+      hero.classList.toggle("at-limit", v === LIMIT);   // gul exakt på gränsen
       if (t < 1) { raf = requestAnimationFrame(tick); return; }
       // Över gränsen: en km/h i taget
       for (let v = LIMIT + 1; v <= TARGET; v++) {

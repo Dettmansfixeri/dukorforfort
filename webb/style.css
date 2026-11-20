@@ -50,6 +50,7 @@ html, body { overflow-x: clip; }
   transition: color .15s;
 }
 .unit { font-size: clamp(18px, 5vw, 26px); color: var(--muted); }
+.hero.at-limit .speed { color: #FFC800; text-shadow: 0 0 20px rgba(255, 200, 0, .45); }
 .hero.over .speed { color: #ff3b30; text-shadow: 0 0 24px rgba(255, 59, 48, .6); }
 
 /* "Du kör för fort" + IDIOT-tavlan snett bakom */
