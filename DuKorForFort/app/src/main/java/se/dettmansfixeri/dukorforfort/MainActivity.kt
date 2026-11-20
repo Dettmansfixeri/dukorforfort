@@ -215,6 +215,9 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                     AutoMode.OFF -> {}
                 }
                 if (s.auto != AutoMode.OFF) AutoPermissions(s.auto, permTick) { permTick++ }
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text("Version ${BuildConfig.VERSION_NAME}", fontSize = 12.sp, color = Dim)
             }
         },
         confirmButton = { TextButton(onClick = { onDone(s) }) { Text("Klar") } },

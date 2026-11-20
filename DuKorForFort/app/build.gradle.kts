@@ -12,9 +12,11 @@ android {
         applicationId = "se.dettmansfixeri.dukorforfort"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
-    }
+        // På GitHub sätts BUILD_NUMBER (körningens nummer) → t.ex. 1.1.5.
+        // Lokala byggen blir "1.1-lokal" med lågt versionCode.
+        val build = System.getenv("BUILD_NUMBER")?.toIntOrNull()
+        versionCode = if (build != null) 100 + build else 2
+        versionName = "1.1" + (if (build != null) ".$build" else "-lokal")    }
 
     signingConfigs {
         // På GitHub pekar DEBUG_KEYSTORE på samma nyckel som används lokalt,
@@ -38,6 +40,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

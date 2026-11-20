@@ -42,19 +42,24 @@ jobs:
           echo "DEBUG_KEYSTORE=$RUNNER_TEMP/signering.keystore" >> "$GITHUB_ENV"
 
       - name: Bygg och testa
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug testDebugUnitTest --no-daemon
+          VERSION=$(grep -oP 'versionName = "\K[0-9.]+' app/build.gradle.kts).$BUILD_NUMBER
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/DuKorForFort-$VERSION.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/DuKorForFort.apk"
 
+      # Två filer: en med versionen i namnet (webbsidan länkar dit) och en med fast namn som reserv.
       - name: Publicera APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           gh release delete app --cleanup-tag --yes || true
-          gh release create app "$RUNNER_TEMP/DuKorForFort.apk" \
+          gh release create app "$RUNNER_TEMP/DuKorForFort-$VERSION.apk" "$RUNNER_TEMP/DuKorForFort.apk" \
             --title "Appen $VERSION" \
-            --notes "Senaste bygget av appen (version $VERSION, ${GITHUB_SHA::7}). Ladda ner DuKorForFort.apk nedan." \
+            --notes "Senaste bygget av appen, version $VERSION (${GITHUB_SHA::7})." \
             --target "$GITHUB_SHA" \
             --latest=false
