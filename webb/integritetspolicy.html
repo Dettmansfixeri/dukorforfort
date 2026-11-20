@@ -19,17 +19,28 @@
   <p>Appen använder telefonens GPS för att räkna ut din hastighet och för att ta reda på vilken hastighetsgräns som gäller där du är. Det sker medan bevakningen är igång – även när en annan app är framme, och då visas en notis så att du alltid ser att den är igång. Du stänger av den med ”Stopp” i notisen eller i appen.</p>
   <p>Hastighetsgränserna slås upp i en datafil som ligger i telefonen. Din position skickas inte till oss eller till någon annan, och den sparas inte.</p>
 
+  <h2>Automatisk start (valfritt)</h2>
+  <p>Om du slår på automatisk start kan appen starta bevakningen själv, även när den inte är öppen:</p>
+  <ul>
+    <li><strong>”När jag åker”</strong> – telefonens rörelseavkänning (Google Play-tjänster) säger till appen när du verkar sitta i ett fordon. Appen får bara veta det, inget skickas till oss.</li>
+    <li><strong>”Bara i min bil”</strong> – appen ser när telefonen kopplas till den Bluetooth-enhet du valt. Enhetens adress sparas bara i telefonen.</li>
+  </ul>
+  <p>För att kunna starta medan telefonen ligger i fickan behöver appen plats ”Tillåt alltid”. Positionen används ändå bara medan bevakningen är igång, och då visas alltid notisen. Bevakningen stängs av när du har stannat. Är automatisk start avstängd används inget av detta.</p>
+
   <h2>Hastighetsdata</h2>
   <p>Datafilen med Sveriges hastighetsgränser kommer från Trafikverket (öppen data, CC0). Appen laddar ner den från GitHub (github.com), där vi publicerar den. Appen kollar också då och då om det finns en nyare version. Vid nedladdningen ser GitHub, som alla webbtjänster, telefonens IP-adress och tidpunkten. Ingen position eller annan uppgift om dig skickas med. Läs om hur GitHub hanterar uppgifter i <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHubs integritetspolicy</a>.</p>
 
   <h2>Inställningar</h2>
-  <p>Vilket fordon du valt och om du kör med släp sparas bara i telefonen.</p>
+  <p>Vilket fordon du valt, om du kör med släp, marginal, ljud/vibration och vald bil sparas bara i telefonen.</p>
 
   <h2>Behörigheter</h2>
   <ul>
     <li><strong>Plats</strong> – för hastighet och hastighetsgräns.</li>
     <li><strong>Förgrundstjänst och notiser</strong> – så att bevakningen fortsätter när en annan app är framme, med en synlig notis.</li>
     <li><strong>Internet</strong> – bara för att ladda ner och uppdatera hastighetsdatan.</li>
+    <li><strong>Vibration</strong> – för att varna när du kör för fort.</li>
+    <li><strong>Plats i bakgrunden, fysisk aktivitet och enheter i närheten (Bluetooth)</strong> – bara om du slår på automatisk start.</li>
+    <li><strong>Starta vid uppstart</strong> – så att automatisk start fungerar även efter att telefonen startats om.</li>
   </ul>
 
   <h2>Barn</h2>

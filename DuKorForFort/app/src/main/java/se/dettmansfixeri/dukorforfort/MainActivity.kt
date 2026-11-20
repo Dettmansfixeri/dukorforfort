@@ -1,10 +1,11 @@
 package se.dettmansfixeri.dukorforfort
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -13,35 +14,27 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.nativeCanvas
-import android.graphics.Paint
-import android.graphics.Typeface
-import androidx.core.content.res.ResourcesCompat
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,6 +78,7 @@ fun DataGate() {
     LaunchedEffect(Unit) {
         DataManager.load(ctx)
         SpeedTracker.loadSettings(ctx)
+        AutoStart.apply(ctx, SpeedTracker.settings.value)
         DataManager.checkForUpdate(ctx)
     }
 
@@ -140,55 +134,126 @@ fun DownloadScreen(progress: Float?, error: String?, onDownload: () -> Unit) {
     }
 }
 
+private val Dim = Color.White.copy(alpha = 0.65f)
+
 @Composable
-fun VehicleDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () -> Unit) {
-    var vehicle by remember { mutableStateOf(current.vehicle) }
-    var trailer by remember { mutableStateOf(current.trailer) }
-    var margin by remember { mutableStateOf(current.margin.toFloat()) }
+private fun SwitchRow(title: String, subtitle: String? = null, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title)
+            if (subtitle != null) Text(subtitle, fontSize = 13.sp, color = Dim)
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun RadioRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(label)
+    }
+}
+
+@Composable
+fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () -> Unit) {
+    var s by remember { mutableStateOf(current) }
+    var permTick by remember { mutableIntStateOf(0) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Inställningar") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Varna när jag kör", fontWeight = FontWeight.Bold)
-                val m = margin.toInt()
                 Text(
-                    if (m == 0) "så fort jag är över gränsen" else "mer än $m km/h över gränsen",
-                    fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f)
+                    if (s.margin == 0) "så fort jag är över gränsen" else "mer än ${s.margin} km/h över gränsen",
+                    fontSize = 14.sp, color = Dim
                 )
                 Slider(
-                    value = margin,
-                    onValueChange = { margin = it },
+                    value = s.margin.toFloat(),
+                    onValueChange = { s = s.copy(margin = it.toInt()) },
                     valueRange = 0f..SpeedTracker.MAX_MARGIN.toFloat(),
                     steps = SpeedTracker.MAX_MARGIN - 1,
                 )
+                SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
+                SwitchRow("Pip", null, s.beep) { s = s.copy(beep = it) }
+
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text("Vad kör du?", fontWeight = FontWeight.Bold)
-                Vehicle.entries.forEach { v ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { vehicle = v }.padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = vehicle == v, onClick = { vehicle = v })
-                        Text(v.label)
-                    }
-                }
+                Vehicle.entries.forEach { v -> RadioRow(v.label, s.vehicle == v) { s = s.copy(vehicle = v) } }
+                SwitchRow("Släp/efterfordon", "Max ${Vehicle.TRAILER_MAX} km/h", s.trailer) { s = s.copy(trailer = it) }
+
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Row(
-                    Modifier.fillMaxWidth().clickable { trailer = !trailer }.padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Släp/efterfordon")
-                        Text("Max ${Vehicle.TRAILER_MAX} km/h", fontSize = 13.sp, color = Color.White.copy(alpha = 0.6f))
-                    }
-                    Switch(checked = trailer, onCheckedChange = { trailer = it })
+                Text("Starta automatiskt", fontWeight = FontWeight.Bold)
+                AutoMode.entries.forEach { m -> RadioRow(m.label, s.auto == m) { s = s.copy(auto = m) } }
+                when (s.auto) {
+                    AutoMode.DRIVING -> Text(
+                        "Startar när telefonen märker att du åker, och bevakar när du kör över " +
+                                "${SpeedTracker.AUTO_ARM_KMH} km/h. Åker du buss eller taxi: tryck \"Jag kör inte\" i notisen.",
+                        fontSize = 13.sp, color = Dim
+                    )
+                    AutoMode.CAR -> CarPicker(s, permTick) { addr, name -> s = s.copy(carAddress = addr, carName = name) }
+                    AutoMode.OFF -> {}
                 }
+                if (s.auto != AutoMode.OFF) AutoPermissions(s.auto, permTick) { permTick++ }
             }
         },
-        confirmButton = { TextButton(onClick = { onDone(Settings(vehicle, trailer, margin.toInt())) }) { Text("Klar") } },
+        confirmButton = { TextButton(onClick = { onDone(s) }) { Text("Klar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Avbryt") } },
     )
+}
+
+/** Visar vilken behörighet som saknas för automatiken och en knapp för att ge den. */
+@Composable
+private fun AutoPermissions(mode: AutoMode, tick: Int, onChanged: () -> Unit) {
+    val ctx = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { onChanged() }
+    check(tick >= 0) // läses så att rutan ritas om när en behörighet ändrats
+
+    data class Need(val permission: String, val text: String, val button: String)
+    val need = when {
+        mode == AutoMode.DRIVING && !AutoStart.hasActivityPermission(ctx) && Build.VERSION.SDK_INT >= 29 ->
+            Need(Manifest.permission.ACTIVITY_RECOGNITION,
+                "Appen behöver \"Fysisk aktivitet\" för att märka när du åker.", "Tillåt fysisk aktivitet")
+        mode == AutoMode.CAR && !AutoStart.hasBluetoothPermission(ctx) && Build.VERSION.SDK_INT >= 31 ->
+            Need(Manifest.permission.BLUETOOTH_CONNECT,
+                "Appen behöver \"Enheter i närheten\" för att se när bilen kopplas in.", "Tillåt enheter i närheten")
+        !AutoStart.hasBackgroundLocation(ctx) && Build.VERSION.SDK_INT >= 29 ->
+            Need(Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                "För att starta medan telefonen ligger i fickan behöver appen plats \"Tillåt alltid\". " +
+                        "Välj det på nästa sida.", "Välj \"Tillåt alltid\"")
+        else -> null
+    }
+    Spacer(Modifier.height(6.dp))
+    if (need == null) {
+        Text("✓ Allt klart för automatisk start", fontSize = 13.sp, color = Color(0xFF81C784))
+    } else {
+        Text(need.text, fontSize = 13.sp, color = Color(0xFFFFB74D))
+        OutlinedButton(onClick = { launcher.launch(need.permission) }) { Text(need.button) }
+    }
+}
+
+/** Lista över kopplade Bluetooth-enheter att välja bilen från. */
+@SuppressLint("MissingPermission")
+@Composable
+private fun CarPicker(s: Settings, tick: Int, onPick: (String, String) -> Unit) {
+    val ctx = LocalContext.current
+    if (!AutoStart.hasBluetoothPermission(ctx)) return
+    val devices = remember(tick) {
+        try {
+            ctx.getSystemService(BluetoothManager::class.java)?.adapter?.bondedDevices.orEmpty()
+                .map { it.address to (it.name ?: it.address) }.sortedBy { it.second.lowercase() }
+        } catch (e: SecurityException) { emptyList() }
+    }
+    Text("Välj din bil:", fontSize = 13.sp, color = Dim)
+    if (devices.isEmpty()) Text("Inga kopplade Bluetooth-enheter. Koppla telefonen till bilen först.", fontSize = 13.sp, color = Dim)
+    devices.forEach { (addr, name) -> RadioRow(name, s.carAddress == addr) { onPick(addr, name) } }
 }
 
 /** Visas vid första start. Appen går inte att använda förrän man tryckt "Jag förstår". */
@@ -237,6 +302,51 @@ fun Disclaimer(onAccept: () -> Unit) {
     }
 }
 
+/** Röd blinkande bakgrund när man kör för fort. */
+@Composable
+fun warningBackground(tooFast: Boolean): Color {
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val t by pulse.animateFloat(0f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "t")
+    return if (tooFast) lerp(Color(0xFF7F0000), Color(0xFFE53935), t) else Color(0xFF101418)
+}
+
+/** Skylten, ev. förklaring och IDIOT-tavlan. */
+@Composable
+fun SignBlock(state: UiState, signSize: androidx.compose.ui.unit.Dp, onSecret: (() -> Unit)? = null) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        SpeedSign(state.limitKmh, state.limitStale, signSize)
+        val signed = state.signedKmh
+        if (state.reason != null && signed != null && signed != state.limitKmh) {
+            Text(
+                "Skyltat $signed · ${state.limitKmh} gäller dig (${state.reason})",
+                fontSize = 14.sp, color = Color.White.copy(alpha = 0.75f), textAlign = TextAlign.Center
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        UnderSign("IDIOT", signSize, onSecret)
+    }
+}
+
+/** Din hastighet och varningstexten. */
+@Composable
+fun SpeedBlock(state: UiState, fontSize: TextUnit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = state.speedKmh?.toString() ?: "–",
+            fontSize = fontSize, lineHeight = fontSize,
+            fontWeight = FontWeight.Black, color = Color.White
+        )
+        Text("km/h", fontSize = 24.sp, color = Color.White.copy(alpha = 0.7f))
+        if (state.tooFast) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Du kör för fort, IDIOT!",
+                fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
 @Composable
 fun SpeedScreen() {
     val ctx = LocalContext.current
@@ -266,68 +376,25 @@ fun SpeedScreen() {
         if (hasPermission) SpeedService.start(ctx)
     }
 
-    // Blinkande röd bakgrund när man kör för fort
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val t by pulse.animateFloat(
-        0f, 1f, infiniteRepeatable(tween(450), RepeatMode.Reverse), label = "t"
-    )
-    val bg = if (state.tooFast) lerp(Color(0xFF7F0000), Color(0xFFE53935), t) else Color(0xFF101418)
-
     val settings by SpeedTracker.settings.collectAsStateWithLifecycle()
     val dataState by DataManager.state.collectAsStateWithLifecycle()
-    var showVehicle by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var showTest by remember { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize().background(bg).safeDrawingPadding().padding(16.dp)) {
-        // Valt fordon uppe till vänster – tryck för att ändra.
-        OutlinedButton(
-            onClick = { showVehicle = true },
-            modifier = Modifier.align(Alignment.TopStart)
-        ) {
-            Text(
-                "⚙ " + settings.vehicle.label + (if (settings.trailer) " + släp" else "") +
-                        (if (settings.margin > 0) " · +${settings.margin} km/h" else ""),
-                color = Color.White
-            )
-        }
-        Column(
-            Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            SpeedSign(state.limitKmh, state.limitStale)
-            val signed = state.signedKmh
-            if (state.reason != null && signed != null && signed != state.limitKmh) {
-                Text(
-                    "Skyltat $signed · ${state.limitKmh} gäller dig (${state.reason})",
-                    fontSize = 14.sp, color = Color.White.copy(alpha = 0.75f)
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            UnderSign("IDIOT")
-            Spacer(Modifier.height(24.dp))
-            Text(
-                text = state.speedKmh?.toString() ?: "–",
-                fontSize = 140.sp,
-                fontWeight = FontWeight.Black,
-                color = Color.White
-            )
-            Text("km/h", fontSize = 24.sp, color = Color.White.copy(alpha = 0.7f))
-            Spacer(Modifier.height(24.dp))
-            if (state.tooFast) {
-                Text(
-                    "Du kör för fort, IDIOT!",
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color.White,
-                    textAlign = TextAlign.Center
-                )
-            }
-            Spacer(Modifier.height(16.dp))
+    if (showTest) {
+        TestScreen(onClose = { showTest = false })
+        return
+    }
+
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val bg = warningBackground(state.tooFast)
+
+    @Composable
+    fun StatusBlock() {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 if (!hasPermission) "Appen behöver platsbehörighet" else state.status,
-                fontSize = 14.sp,
-                color = Color.White.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center
+                fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f), textAlign = TextAlign.Center
             )
             val ds = dataState
             Text(
@@ -337,12 +404,10 @@ fun SpeedScreen() {
                     is DataManager.State.Failed -> "Uppdateringen misslyckades: ${ds.message}"
                     else -> ""
                 },
-                fontSize = 12.sp,
-                color = Color.White.copy(alpha = 0.45f),
-                textAlign = TextAlign.Center
+                fontSize = 12.sp, color = Color.White.copy(alpha = 0.45f), textAlign = TextAlign.Center
             )
             if (hasPermission) {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(12.dp))
                 if (state.running) {
                     OutlinedButton(onClick = { SpeedService.stop(ctx) }) { Text("Stoppa", color = Color.White) }
                 } else {
@@ -352,76 +417,53 @@ fun SpeedScreen() {
         }
     }
 
-    if (showVehicle) {
-        VehicleDialog(
+    Box(Modifier.fillMaxSize().background(bg).safeDrawingPadding().padding(16.dp)) {
+        // Inställningar uppe till vänster – visar valt fordon och marginal.
+        OutlinedButton(onClick = { showSettings = true }, modifier = Modifier.align(Alignment.TopStart)) {
+            Text(
+                "⚙ " + settings.vehicle.label + (if (settings.trailer) " + släp" else "") +
+                        (if (settings.margin > 0) " · +${settings.margin} km/h" else ""),
+                color = Color.White
+            )
+        }
+        if (landscape) {
+            // Liggande: skylten till vänster, hastigheten till höger.
+            Row(
+                Modifier.fillMaxSize().padding(top = 44.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SignBlock(state, 150.dp) { showTest = true }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    SpeedBlock(state, 110.sp)
+                    Spacer(Modifier.height(8.dp))
+                    StatusBlock()
+                }
+            }
+        } else {
+            Column(
+                Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                SignBlock(state, 190.dp) { showTest = true }
+                Spacer(Modifier.height(24.dp))
+                SpeedBlock(state, 140.sp)
+                Spacer(Modifier.height(24.dp))
+                StatusBlock()
+            }
+        }
+    }
+
+    if (showSettings) {
+        SettingsDialog(
             current = settings,
-            onDone = { SpeedTracker.setSettings(ctx, it); showVehicle = false },
-            onDismiss = { showVehicle = false },
+            onDone = {
+                SpeedTracker.setSettings(ctx, it)
+                AutoStart.apply(ctx, it)
+                showSettings = false
+            },
+            onDismiss = { showSettings = false },
         )
-    }
-}
-
-/*
- * Svenska vägmärken ritade efter förlaga, i en koordinatyta på 100 enheter i bredd
- * (samma mått som SVG:erna på webbsidan):
- *  - C31 Hastighetsbegränsning: röd ring ut till kanten, gul platta (r 38.4), svarta Tratex-siffror.
- *  - Tilläggstavla: röd kant med rundade hörn, gul botten, svart Tratex-text.
- */
-private const val SIGN_RED = 0xFFDC0028.toInt()
-private const val PLATE_RED = 0xFFE8202E.toInt()
-private const val SIGN_YELLOW = 0xFFFFC800.toInt()
-
-@Composable
-private fun rememberTratex(): Typeface? {
-    val ctx = LocalContext.current
-    return remember { ResourcesCompat.getFont(ctx, R.font.tratex_svart) }
-}
-
-@Composable
-fun SpeedSign(limit: Int?, stale: Boolean) {
-    val tf = rememberTratex()
-    val text = limit?.toString() ?: "?"
-    Canvas(Modifier.size(190.dp)) {
-        val u = size.width / 100f
-        drawCircle(Color(SIGN_RED), radius = 50f * u)
-        drawCircle(Color(SIGN_YELLOW), radius = 38.4f * u)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = tf
-            color = if (stale) android.graphics.Color.GRAY else android.graphics.Color.BLACK
-            textAlign = Paint.Align.CENTER
-        }
-        // Skyltsiffrorna är smalare än Tratex normalbredd (scaleX 0.766).
-        // Tresiffriga (100–120) görs lite lägre så de ryms i den gula plattan.
-        val threeDigits = text.length >= 3
-        val textSize = if (threeDigits) 48f else 56.8f
-        val maxWidth = if (threeDigits) 60f else 66f
-        paint.textSize = textSize * u
-        paint.textScaleX = minOf(0.766f, maxWidth * u / paint.measureText(text))
-        // Baslinjen läggs så att siffrornas höjd (≈0.8 em i Tratex) blir centrerad.
-        drawContext.canvas.nativeCanvas.drawText(text, 50f * u, (50f + 0.4f * textSize) * u, paint)
-    }
-}
-
-@Composable
-fun UnderSign(text: String) {
-    val tf = rememberTratex()
-    Canvas(Modifier.width(190.dp).height(76.dp)) {
-        val u = size.width / 100f
-        drawRoundRect(Color(PLATE_RED), cornerRadius = CornerRadius(4.5f * u))
-        drawRoundRect(
-            Color(SIGN_YELLOW),
-            topLeft = Offset(2.6f * u, 2.6f * u),
-            size = Size(94.8f * u, 34.8f * u),
-            cornerRadius = CornerRadius(2.6f * u)
-        )
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = tf
-            color = android.graphics.Color.BLACK
-            textAlign = Paint.Align.CENTER
-            textSize = 24.5f * u
-        }
-        val w = paint.measureText(text)
-        if (w > 88f * u) paint.textScaleX = 88f * u / w
-        drawContext.canvas.nativeCanvas.drawText(text, 50f * u, 30.1f * u, paint)
     }
 }
