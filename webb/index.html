@@ -71,7 +71,9 @@
 </main>
 <script>
 (() => {
-  const LIMIT = 70, TARGET = LIMIT + 3, DURATION = 2600;
+  const LIMIT = 70, TARGET = LIMIT + 3;
+  const FAST_MS = 1200;   // 0 -> 70 snabbt
+  const STEP_MS = 550;    // sedan segt: 71, 72, 73 med en paus mellan varje
   const hero = document.getElementById("hero");
   const speed = document.getElementById("speed");
   // Den som valt "minska rörelse" i sitt system får animationen utan skak och pulserande sken.
@@ -98,12 +100,18 @@
     hero.classList.remove("over", "show-text", "show-plate", "done");
     const start = performance.now();
     const tick = (now) => {
-      const t = Math.min(1, (now - start) / DURATION);
-      const eased = 1 - Math.pow(1 - t, 3);            // snabbt i början, saktar in mot slutet
-      const v = Math.round(eased * TARGET);
-      speed.textContent = v;
-      if (v > LIMIT) overLimit();
-      if (t < 1) raf = requestAnimationFrame(tick); else finish();
+      const t = Math.min(1, (now - start) / FAST_MS);
+      const eased = 1 - Math.pow(1 - t, 2);            // snabbt, bromsar lite in mot 70
+      speed.textContent = Math.round(eased * LIMIT);
+      if (t < 1) { raf = requestAnimationFrame(tick); return; }
+      // Över gränsen: en km/h i taget
+      for (let v = LIMIT + 1; v <= TARGET; v++) {
+        timers.push(setTimeout(() => {
+          speed.textContent = v;
+          overLimit();
+          if (v === TARGET) finish();
+        }, (v - LIMIT) * STEP_MS));
+      }
     };
     raf = requestAnimationFrame(tick);
   }
