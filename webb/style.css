@@ -19,18 +19,25 @@ main { max-width: 720px; margin: 0 auto; padding: 48px 16px 64px; }
 @font-face { font-family: "TratexVersal"; src: url("fonts/TratexPosVersal.ttf") format("truetype"); font-display: swap; }
 
 /* ---------- Intro ---------- */
+/* Färgen på skenet bakom: grönt under gränsen, gult på gränsen, rött över */
+@property --glow { syntax: "<color>"; inherits: true; initial-value: rgba(0, 0, 0, 0); }
 .hero {
   position: relative;
   max-width: 720px; margin: 0 auto; padding: 40px 16px 8px;
+  --glow: rgba(0, 0, 0, 0);
+  transition: --glow .35s;
 }
+.hero.counting { --glow: rgba(46, 204, 113, .38); }
+.hero.at-limit { --glow: rgba(255, 200, 0, .42); }
+.hero.over     { --glow: rgba(229, 57, 53, .5); }
 html, body { overflow-x: clip; }
-/* Rött sken bakom när man kör för fort (över hela bredden, utan hårda kanter) */
+/* Skenet sträcker sig över hela bredden, utan hårda kanter */
 .hero::before {
   content: ""; position: absolute; top: -40px; bottom: 0; left: calc(50% - 50vw); right: calc(50% - 50vw);
-  background: radial-gradient(ellipse 60% 70% at 40% 25%, rgba(229, 57, 53, .45), transparent 70%);
-  opacity: 0; transition: opacity .25s; pointer-events: none;
+  background: radial-gradient(ellipse 60% 70% at 40% 25%, var(--glow), transparent 70%);
+  pointer-events: none;
 }
-.hero.over::before { opacity: 1; animation: glow .45s ease-in-out infinite alternate; }
+.hero.over::before { animation: glow .45s ease-in-out infinite alternate; }
 .hero.done::before { animation: none; opacity: .55; }
 @keyframes glow { from { opacity: .35; } to { opacity: 1; } }
 

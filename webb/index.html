@@ -124,6 +124,7 @@
     timers = [];
     meter.querySelectorAll(".spark").forEach((s) => s.remove());
     hero.classList.remove("at-limit", "over", "show-text", "show-plate", "done", ...LEVELS);
+    hero.classList.add("counting");
     const start = performance.now();
     const tick = (now) => {
       const t = Math.min(1, (now - start) / FAST_MS);
