@@ -1,0 +1,20 @@
+# Nedladdad data (publiceras som release, inte i repot)
+data/
+
+# Nyckeln får aldrig hamna på GitHub
+webb/api/config.php
+
+# Android
+DuKorForFort/.gradle/
+DuKorForFort/build/
+DuKorForFort/app/build/
+DuKorForFort/local.properties
+DuKorForFort/.idea/
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Övrigt
+*.zip
+.claude/

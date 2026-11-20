@@ -1,0 +1,42 @@
+# Hämtar alla hastighetsgränser från Trafikverket och publicerar dem som en release.
+# Appen laddar ner filerna från:
+#   https://github.com/<konto>/<repo>/releases/latest/download/version.json
+#   https://github.com/<konto>/<repo>/releases/latest/download/hastigheter.ndjson.gz
+#
+# Kräver en secret i repot: TRAFIKVERKET_API_KEY (Settings → Secrets and variables → Actions).
+name: Hastighetsdata
+
+on:
+  schedule:
+    - cron: "0 3 1 * *"   # den 1:a varje månad kl 03:00 UTC
+  workflow_dispatch:       # knapp "Run workflow" för att köra direkt
+
+permissions:
+  contents: write          # behövs för att skapa releasen
+
+jobs:
+  hamta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Hämta från Trafikverket
+        env:
+          TRAFIKVERKET_API_KEY: ${{ secrets.TRAFIKVERKET_API_KEY }}
+        run: node verktyg/hamta-hastigheter.mjs
+
+      - name: Publicera release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./data/version.json').version")
+          gh release create "data-$VERSION" \
+            data/hastigheter.ndjson.gz data/version.json \
+            --title "Hastighetsdata $VERSION" \
+            --notes-file data/sammanfattning.md \
+            --latest

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Du kör för fort, IDIOT!</title>
+  <meta name="description" content="Androidapp som visar din hastighet och vägens hastighetsgräns från Trafikverket.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <svg class="sign" viewBox="0 0 100 100" role="img" aria-label="Hastighetsgräns 70">
+    <circle cx="50" cy="50" r="50" fill="#DC0028"/>
+    <circle cx="50" cy="50" r="38.4" fill="#FFC800"/>
+    <text x="50" y="72.7" text-anchor="middle" transform="translate(50 0) scale(0.766 1) translate(-50 0)"
+          font-family="Tratex" font-size="56.8" fill="#000">70</text>
+  </svg>
+  <svg class="undersign" viewBox="0 0 100 40" role="img" aria-label="IDIOT">
+    <rect x="0" y="0" width="100" height="40" rx="4.5" fill="#E8202E"/>
+    <rect x="2.6" y="2.6" width="94.8" height="34.8" rx="2.6" fill="#FFC800"/>
+    <text x="50" y="30.1" text-anchor="middle" font-family="Tratex" font-size="24.5" fill="#000">IDIOT</text>
+  </svg>
+  <h1>Du kör för fort, IDIOT!</h1>
+  <p class="lead">En Androidapp som visar hur fort du kör och vad som gäller på vägen. Kör du för fort så säger den det. Rakt ut.</p>
+
+  <div class="card">
+    <h2 style="margin-top:0">Så funkar den</h2>
+    <ul>
+      <li>Din hastighet läses från telefonens GPS.</li>
+      <li>Hastighetsgränsen hämtas från Trafikverkets nationella vägdatabas (NVDB) via deras öppna API.</li>
+      <li>Kör du över gränsen blinkar skärmen rött och appen piper.</li>
+    </ul>
+  </div>
+
+  <h2>Kom igång</h2>
+  <ol>
+    <li>Installera appen på din Androidtelefon.</li>
+    <li>Öppna den och tillåt platsåtkomst.</li>
+    <li>Kör. Mer behövs inte.</li>
+  </ol>
+
+  <h2>Viktigt</h2>
+  <p>Appen är ett hjälpmedel. Det är alltid vägmärkena som gäller, och det är du som ansvarar för hur du kör. Titta på vägen, inte på telefonen.</p>
+
+  <a class="btn" href="integritetspolicy.html">Integritetspolicy</a>
+
+  <footer>
+    Hastighetsdata: Trafikverket (CC0). En app från Dettmans Fixeri.
+  </footer>
+</main>
+</body>
+</html>
