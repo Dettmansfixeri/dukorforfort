@@ -144,11 +144,26 @@ fun DownloadScreen(progress: Float?, error: String?, onDownload: () -> Unit) {
 fun VehicleDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () -> Unit) {
     var vehicle by remember { mutableStateOf(current.vehicle) }
     var trailer by remember { mutableStateOf(current.trailer) }
+    var margin by remember { mutableStateOf(current.margin.toFloat()) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Vad kör du?") },
+        title = { Text("Inställningar") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("Varna när jag kör", fontWeight = FontWeight.Bold)
+                val m = margin.toInt()
+                Text(
+                    if (m == 0) "så fort jag är över gränsen" else "mer än $m km/h över gränsen",
+                    fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f)
+                )
+                Slider(
+                    value = margin,
+                    onValueChange = { margin = it },
+                    valueRange = 0f..SpeedTracker.MAX_MARGIN.toFloat(),
+                    steps = SpeedTracker.MAX_MARGIN - 1,
+                )
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text("Vad kör du?", fontWeight = FontWeight.Bold)
                 Vehicle.entries.forEach { v ->
                     Row(
                         Modifier.fillMaxWidth().clickable { vehicle = v }.padding(vertical = 4.dp),
@@ -171,7 +186,7 @@ fun VehicleDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () -
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onDone(Settings(vehicle, trailer)) }) { Text("Klar") } },
+        confirmButton = { TextButton(onClick = { onDone(Settings(vehicle, trailer, margin.toInt())) }) { Text("Klar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Avbryt") } },
     )
 }
@@ -268,7 +283,11 @@ fun SpeedScreen() {
             onClick = { showVehicle = true },
             modifier = Modifier.align(Alignment.TopStart)
         ) {
-            Text(settings.vehicle.label + if (settings.trailer) " + släp" else "", color = Color.White)
+            Text(
+                "⚙ " + settings.vehicle.label + (if (settings.trailer) " + släp" else "") +
+                        (if (settings.margin > 0) " · +${settings.margin}" else ""),
+                color = Color.White
+            )
         }
         Column(
             Modifier.fillMaxSize(),

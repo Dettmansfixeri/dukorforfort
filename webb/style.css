@@ -18,10 +18,89 @@ main { max-width: 720px; margin: 0 auto; padding: 48px 16px 64px; }
 @font-face { font-family: "Tratex"; src: url("fonts/TratexSvart.ttf") format("truetype"); font-display: swap; }
 @font-face { font-family: "TratexVersal"; src: url("fonts/TratexPosVersal.ttf") format("truetype"); font-display: swap; }
 
-/* Svensk hastighetsskylt (C31), ritad som SVG i index.html */
-.sign { display: block; width: 160px; height: 160px; margin: 4px 0 8px; }
-/* Tilläggstavla, ritad som SVG i index.html */
-.undersign { display: block; width: 160px; height: 64px; margin-bottom: 24px; }
+/* ---------- Intro ---------- */
+.hero {
+  position: relative;
+  max-width: 720px; margin: 0 auto; padding: 40px 16px 8px;
+}
+html, body { overflow-x: clip; }
+/* Rött sken bakom när man kör för fort (över hela bredden, utan hårda kanter) */
+.hero::before {
+  content: ""; position: absolute; top: -40px; bottom: 0; left: calc(50% - 50vw); right: calc(50% - 50vw);
+  background: radial-gradient(ellipse 60% 70% at 40% 25%, rgba(229, 57, 53, .45), transparent 70%);
+  opacity: 0; transition: opacity .25s; pointer-events: none;
+}
+.hero.over::before { opacity: 1; animation: glow .45s ease-in-out infinite alternate; }
+.hero.done::before { animation: none; opacity: .55; }
+@keyframes glow { from { opacity: .35; } to { opacity: 1; } }
+
+.hero-row { position: relative; display: flex; align-items: center; gap: clamp(16px, 5vw, 40px); }
+.sign { display: block; width: clamp(110px, 28vw, 160px); height: auto; flex: none; }
+.hero.over .sign { animation: shake .12s linear 6; }
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); } 25% { transform: translate(-2px, 1px); }
+  50% { transform: translate(2px, -1px); } 75% { transform: translate(-1px, -1px); }
+}
+
+.meter { display: flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
+.speed {
+  font-family: "Tratex", system-ui, sans-serif;
+  font-size: clamp(72px, 22vw, 136px); line-height: 1; color: #fff;
+  min-width: 2ch; text-align: right;
+  transition: color .15s;
+}
+.unit { font-size: clamp(18px, 5vw, 26px); color: var(--muted); }
+.hero.over .speed { color: #ff3b30; text-shadow: 0 0 24px rgba(255, 59, 48, .6); }
+
+/* "Du kör för fort" + IDIOT-tavlan snett bakom */
+.verdict { position: relative; display: inline-block; margin: 28px 0 40px; min-height: 1.2em; }
+.verdict-text {
+  position: relative; z-index: 2; margin: 0;
+  font-size: clamp(40px, 11vw, 76px); line-height: 1; font-weight: 900; letter-spacing: -.02em;
+  color: #fff;
+  text-shadow: 0 3px 0 #000, 0 0 18px rgba(0, 0, 0, .7);
+  opacity: 0; transform: scale(2.2); filter: blur(6px);
+}
+.hero.show-text .verdict-text {
+  animation: slam .45s cubic-bezier(.2, 1.6, .4, 1) forwards;
+}
+@keyframes slam {
+  0% { opacity: 0; transform: scale(2.2); filter: blur(6px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+.plate {
+  position: absolute; z-index: 1;
+  width: clamp(130px, 36vw, 230px); height: auto;
+  right: clamp(-150px, -22vw, -70px); bottom: -55%;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .55));
+  opacity: 0;
+  transform: translate(140%, -260%) rotate(40deg) scale(1.6);
+}
+@media (max-width: 560px) {
+  .plate { width: 118px; right: -4px; bottom: -78%; }
+  .verdict { margin-bottom: 52px; }
+}
+.hero.show-plate .plate { animation: flyin .7s cubic-bezier(.25, 1.35, .45, 1) forwards; }
+@keyframes flyin {
+  0% { opacity: 0; transform: translate(140%, -260%) rotate(40deg) scale(1.6); }
+  25% { opacity: 1; }
+  100% { opacity: 1; transform: translate(0, 0) rotate(-9deg) scale(1); }
+}
+
+.replay {
+  position: absolute; top: 12px; right: 16px;
+  background: none; border: 1px solid rgba(255, 255, 255, .2); color: var(--muted);
+  border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer;
+  opacity: 0; transition: opacity .3s;
+}
+.hero.done .replay { opacity: 1; }
+.replay:hover { color: var(--fg); border-color: rgba(255, 255, 255, .5); }
+.hero + main { padding-top: 8px; }
+
+.hero.still *, .hero.still::before { animation: none !important; transition: none !important; }
+.hero.still.show-text .verdict-text, .hero.still.show-plate .plate { opacity: 1; transform: none; filter: none; }
+.hero.still.show-plate .plate { transform: rotate(-9deg); }
 h1 { font-size: clamp(32px, 7vw, 52px); line-height: 1.1; margin: 0 0 12px; font-weight: 900; }
 h2 { margin-top: 40px; font-size: 22px; }
 p, li { color: var(--fg); }

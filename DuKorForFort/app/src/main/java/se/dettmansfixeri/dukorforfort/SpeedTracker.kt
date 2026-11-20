@@ -35,7 +35,12 @@ data class UiState(
     val tooFast: Boolean = false,
 )
 
-data class Settings(val vehicle: Vehicle = Vehicle.PERSONBIL, val trailer: Boolean = false)
+data class Settings(
+    val vehicle: Vehicle = Vehicle.PERSONBIL,
+    val trailer: Boolean = false,
+    /** Hur många km/h över gränsen man får köra innan appen varnar. */
+    val margin: Int = 0,
+)
 
 /**
  * Själva bevakningen: GPS, uppslag av hastighetsgräns i den lokala datan och pip.
@@ -46,8 +51,8 @@ object SpeedTracker {
     private const val PREFS = "installningar"
     private const val KEY_VEHICLE = "fordon"
     private const val KEY_TRAILER = "slap"
-    /** Pip när man kör så här mycket över gränsen (0 = varje km/h över). */
-    private const val TOLERANCE_KMH = 0
+    private const val KEY_MARGIN = "marginal"
+    const val MAX_MARGIN = 10
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
@@ -68,12 +73,17 @@ object SpeedTracker {
 
     fun loadSettings(ctx: Context) {
         val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        _settings.value = Settings(Vehicle.fromName(p.getString(KEY_VEHICLE, null)), p.getBoolean(KEY_TRAILER, false))
+        _settings.value = Settings(
+            Vehicle.fromName(p.getString(KEY_VEHICLE, null)),
+            p.getBoolean(KEY_TRAILER, false),
+            p.getInt(KEY_MARGIN, 0).coerceIn(0, MAX_MARGIN),
+        )
     }
 
     fun setSettings(ctx: Context, s: Settings) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(KEY_VEHICLE, s.vehicle.name).putBoolean(KEY_TRAILER, s.trailer).apply()
+            .putString(KEY_VEHICLE, s.vehicle.name).putBoolean(KEY_TRAILER, s.trailer)
+            .putInt(KEY_MARGIN, s.margin).apply()
         _settings.value = s
         lastFix?.let { onLocation(it) } // räkna om direkt
     }
@@ -151,7 +161,7 @@ object SpeedTracker {
             }
         }
 
-        val tooFast = speed != null && speed > limit + TOLERANCE_KMH
+        val tooFast = speed != null && speed > limit + s.margin
         _state.update {
             it.copy(speedKmh = speed, limitKmh = limit, signedKmh = road.kmh, reason = reason,
                 limitStale = false, tooFast = tooFast,

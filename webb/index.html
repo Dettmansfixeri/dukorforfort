@@ -8,19 +8,32 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- Intro: hastigheten räknar upp förbi gränsen, sedan kommer texten och IDIOT-tavlan -->
+<section class="hero" id="hero" aria-label="Du kör för fort, IDIOT!">
+  <div class="hero-row">
+    <svg class="sign" viewBox="0 0 100 100" role="img" aria-label="Hastighetsgräns 70">
+      <circle cx="50" cy="50" r="50" fill="#DC0028"/>
+      <circle cx="50" cy="50" r="38.4" fill="#FFC800"/>
+      <text x="50" y="72.7" text-anchor="middle" transform="translate(50 0) scale(0.766 1) translate(-50 0)"
+            font-family="Tratex" font-size="56.8" fill="#000">70</text>
+    </svg>
+    <div class="meter" aria-hidden="true">
+      <span class="speed" id="speed">0</span>
+      <span class="unit">km/h</span>
+    </div>
+  </div>
+  <div class="verdict">
+    <h1 class="verdict-text">Du kör för fort</h1>
+    <svg class="plate" viewBox="0 0 100 40" role="img" aria-label="IDIOT">
+      <rect x="0" y="0" width="100" height="40" rx="4.5" fill="#E8202E"/>
+      <rect x="2.6" y="2.6" width="94.8" height="34.8" rx="2.6" fill="#FFC800"/>
+      <text x="50" y="30.1" text-anchor="middle" font-family="Tratex" font-size="24.5" fill="#000">IDIOT</text>
+    </svg>
+  </div>
+  <button class="replay" id="replay" type="button">↻ Igen</button>
+</section>
+
 <main>
-  <svg class="sign" viewBox="0 0 100 100" role="img" aria-label="Hastighetsgräns 70">
-    <circle cx="50" cy="50" r="50" fill="#DC0028"/>
-    <circle cx="50" cy="50" r="38.4" fill="#FFC800"/>
-    <text x="50" y="72.7" text-anchor="middle" transform="translate(50 0) scale(0.766 1) translate(-50 0)"
-          font-family="Tratex" font-size="56.8" fill="#000">70</text>
-  </svg>
-  <svg class="undersign" viewBox="0 0 100 40" role="img" aria-label="IDIOT">
-    <rect x="0" y="0" width="100" height="40" rx="4.5" fill="#E8202E"/>
-    <rect x="2.6" y="2.6" width="94.8" height="34.8" rx="2.6" fill="#FFC800"/>
-    <text x="50" y="30.1" text-anchor="middle" font-family="Tratex" font-size="24.5" fill="#000">IDIOT</text>
-  </svg>
-  <h1>Du kör för fort, IDIOT!</h1>
   <p class="lead">En Androidapp som visar hur fort du kör och vad som gäller på vägen. Kör du för fort så säger den det. Rakt ut.</p>
 
   <div class="card">
@@ -56,5 +69,44 @@
     Hastighetsdata: Trafikverket (CC0). En app från Dettmans Fixeri.
   </footer>
 </main>
+<script>
+(() => {
+  const LIMIT = 70, TARGET = LIMIT + 3, DURATION = 2600;
+  const hero = document.getElementById("hero");
+  const speed = document.getElementById("speed");
+  // Den som valt "minska rörelse" i sitt system får slutbilden direkt (?anim visar ändå animationen).
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches && !/[?&]anim/.test(location.search);
+  let raf = 0, timers = [];
+
+  function finish() {
+    speed.textContent = TARGET;
+    hero.classList.add("over", "show-text");
+    timers.push(setTimeout(() => hero.classList.add("show-plate"), 450));
+    timers.push(setTimeout(() => hero.classList.add("done"), 1500));
+  }
+
+  function play() {
+    cancelAnimationFrame(raf);
+    timers.forEach(clearTimeout);
+    timers = [];
+    hero.classList.remove("over", "show-text", "show-plate", "done");
+    if (reduce) { speed.textContent = TARGET; hero.classList.add("still", "over", "show-text", "show-plate", "done"); return; }
+    const start = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / DURATION);
+      const eased = 1 - Math.pow(1 - t, 3);            // snabbt i början, saktar in mot slutet
+      const v = Math.round(eased * TARGET);
+      speed.textContent = v;
+      hero.classList.toggle("over", v > LIMIT);
+      if (t < 1) raf = requestAnimationFrame(tick); else finish();
+    };
+    raf = requestAnimationFrame(tick);
+  }
+
+  document.getElementById("replay").addEventListener("click", play);
+  // Vänta in typsnittet så siffrorna inte hoppar.
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => setTimeout(play, 300));
+})();
+</script>
 </body>
 </html>
