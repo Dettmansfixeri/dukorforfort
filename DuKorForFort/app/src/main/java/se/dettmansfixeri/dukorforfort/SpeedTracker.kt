@@ -8,6 +8,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -117,7 +118,33 @@ object SpeedTracker {
     /** Sätts av tjänsten – anropas när bevakningen ska stängas av automatiskt. */
     var onStopRequest: (() -> Unit)? = null
 
-    private val listener = LocationListener { onLocation(it) }
+    // GPS-bortfall: kommer ingen position på GPS_TIMEOUT_MS tystas varningen tills en färsk kommer.
+    private const val GPS_TIMEOUT_MS = 5_000L
+    private var lastFixAt = 0L
+    private var gpsLost = false
+    private var gpsJob: Job? = null
+
+    private fun fixIsFresh() = lastFix != null && SystemClock.elapsedRealtime() - lastFixAt <= GPS_TIMEOUT_MS
+
+    /** Räknar om med senaste positionen, men bara om den är färsk. */
+    private fun recompute() { if (fixIsFresh()) lastFix?.let { onLocation(it) } }
+
+    private val listener = LocationListener {
+        lastFixAt = SystemClock.elapsedRealtime()
+        gpsLost = false
+        onLocation(it)
+    }
+
+    private fun checkGps() {
+        if (!_state.value.running || simulating || gpsLost) return
+        val since = if (lastFix == null) null else SystemClock.elapsedRealtime() - lastFixAt
+        if (since == null || since <= GPS_TIMEOUT_MS) return
+        gpsLost = true
+        _state.update { it.copy(speedKmh = null, limitStale = it.limitKmh != null, tooFast = false,
+            status = if (!armed) waitingText() else "GPS-signal saknas – varningen är tyst") }
+        warner?.update(0, _settings.value)
+        heckler?.reset() // tystnar utan "tack"-repliken
+    }
     private val gnss = object : GnssStatus.Callback() {
         override fun onSatelliteStatusChanged(status: GnssStatus) {
             var used = 0
@@ -157,7 +184,7 @@ object SpeedTracker {
             if (s.voiceEngine != h.engine) { h.release(); heckler = Heckler(appContext(ctx), s.voiceEngine, s.voiceName) }
             else if (s.voiceName != old.voiceName) h.setVoiceName(s.voiceName)
         }
-        lastFix?.let { onLocation(it) } // räkna om direkt
+        recompute() // räkna om direkt
     }
 
     private fun appContext(ctx: Context): Context = ctx.applicationContext
@@ -208,6 +235,11 @@ object SpeedTracker {
                 DataManager.checkForUpdate(ctx)
             }
         }
+        lastFix = null
+        gpsLost = false
+        gpsJob = scope.launch {
+            while (isActive) { delay(1_000); checkGps() }
+        }
         // Stänger av en automatiskt startad bevakning när resan verkar slut.
         watchdogJob = scope.launch {
             while (isActive) {
@@ -244,6 +276,7 @@ object SpeedTracker {
         if (!simulating) releaseWarners()
         updateJob?.cancel(); updateJob = null
         watchdogJob?.cancel(); watchdogJob = null
+        gpsJob?.cancel(); gpsJob = null
         lastFix = null
         autoStarted = false
         _state.value = UiState(running = false, status = "Stoppad")
@@ -346,7 +379,8 @@ object SpeedTracker {
         if (_state.value.running) {
             _state.update { it.copy(speedKmh = null, limitKmh = null, signedKmh = null, reason = null,
                 tooFast = false, status = "Väntar på GPS…") }
-            lastFix?.let { onLocation(it) }
+            gpsLost = false
+            recompute()
         } else {
             releaseWarners()
             _state.value = UiState()

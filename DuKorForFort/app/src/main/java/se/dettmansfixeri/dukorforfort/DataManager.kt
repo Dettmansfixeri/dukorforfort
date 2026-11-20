@@ -9,6 +9,8 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.DigestInputStream
 import java.security.MessageDigest
 import java.util.zip.GZIPInputStream
@@ -146,15 +148,24 @@ object DataManager {
             if (SpeedData.open(tmp) == null) throw IllegalStateException("Filen gick inte att läsa.")
 
             synchronized(this@DataManager) {
-                data = null
                 val target = dataFile(ctx)
-                if (!tmp.renameTo(target)) {
-                    target.delete()
-                    if (!tmp.renameTo(target)) throw IllegalStateException("Kunde inte spara filen.")
+                // Atomiskt byte: antingen ligger den nya filen på plats, eller så är den gamla orörd.
+                // Den gamla datan används ända tills den nya är öppnad.
+                try {
+                    Files.move(tmp.toPath(), target.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
+                } catch (e: Exception) {
+                    throw IllegalStateException("Kunde inte spara filen.")
                 }
-                prefs(ctx).edit().putString(KEY_VERSION, remote.version).apply()
-                data = SpeedData.open(target)
-                _state.value = if (data != null) State.Ready(remote.version) else State.Missing
+                val opened = SpeedData.open(target)
+                if (opened != null) {
+                    prefs(ctx).edit().putString(KEY_VERSION, remote.version).apply()
+                    data = opened
+                    _state.value = State.Ready(remote.version)
+                } else {
+                    data = null
+                    _state.value = State.Missing
+                }
             }
             data != null
         } catch (e: Exception) {
