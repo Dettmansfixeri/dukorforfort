@@ -285,7 +285,7 @@ fun SpeedScreen() {
         ) {
             Text(
                 "⚙ " + settings.vehicle.label + (if (settings.trailer) " + släp" else "") +
-                        (if (settings.margin > 0) " · +${settings.margin}" else ""),
+                        (if (settings.margin > 0) " · +${settings.margin} km/h" else ""),
                 color = Color.White
             )
         }
