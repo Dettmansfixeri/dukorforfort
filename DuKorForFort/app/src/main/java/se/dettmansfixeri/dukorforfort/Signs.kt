@@ -104,7 +104,7 @@ private fun rememberTratex(): Typeface? {
     return remember { SignPainter.tratex(ctx) }
 }
 
-/** Fem tryck med högst 2 s mellanrum inom [hit] anropar [onSecret]. */
+/** Fem tryck inom [hit] på 10 sekunder anropar [onSecret]. */
 @Composable
 private fun secretTaps(key: Any?, onSecret: (() -> Unit)?, hit: (x: Float, width: Float) -> Boolean): Modifier {
     if (onSecret == null) return Modifier
@@ -113,8 +113,8 @@ private fun secretTaps(key: Any?, onSecret: (() -> Unit)?, hit: (x: Float, width
         detectTapGestures { pos ->
             if (hit(pos.x, size.width.toFloat())) {
                 val now = SystemClock.uptimeMillis()
-                if (taps.isNotEmpty() && now - taps.last() > 2000) taps.clear()
                 taps.addLast(now)
+                while (now - taps.first() > 10_000) taps.removeFirst()
                 if (taps.size >= 5) { taps.clear(); onSecret() }
             }
         }
