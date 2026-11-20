@@ -36,18 +36,49 @@ html, body { overflow-x: clip; }
 
 .hero-row { position: relative; display: flex; align-items: center; gap: clamp(16px, 5vw, 40px); }
 .sign { display: block; width: clamp(110px, 28vw, 160px); height: auto; flex: none; }
-.hero.over .sign { animation: shake .12s linear 6; }
+.hero.lvl3 .sign { animation: shake .1s linear 8; }
 @keyframes shake {
   0%, 100% { transform: translate(0, 0); } 25% { transform: translate(-2px, 1px); }
   50% { transform: translate(2px, -1px); } 75% { transform: translate(-1px, -1px); }
 }
 
-.meter { display: flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
+.meter { position: relative; display: flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
 .speed {
+  display: inline-block;
   font-family: "Tratex", system-ui, sans-serif;
   font-size: clamp(72px, 22vw, 136px); line-height: 1; color: #fff;
   min-width: 2ch; text-align: right;
-  transition: color .15s;
+  transform-origin: 50% 60%;
+  transition: color .15s, transform .18s cubic-bezier(.3, 1.8, .5, 1);
+}
+/* Upptrappning över gränsen */
+.hero.lvl2 .speed { transform: scale(1.12); }
+.hero.lvl3 .speed { transform: scale(1.24); }
+.hero.lvl2 .meter { animation: shake-s .11s linear infinite; }
+.hero.lvl3 .meter { animation: shake-l .06s linear infinite; }
+.hero.done .meter { animation: none; }
+@keyframes shake-s {
+  0%, 100% { transform: translate(0, 0); } 25% { transform: translate(-2px, 1px); }
+  50% { transform: translate(2px, -1px); } 75% { transform: translate(-1px, -2px); }
+}
+@keyframes shake-l {
+  0%, 100% { transform: translate(0, 0) rotate(0); } 20% { transform: translate(-6px, 3px) rotate(-1.5deg); }
+  40% { transform: translate(5px, -4px) rotate(1deg); } 60% { transform: translate(-4px, -3px) rotate(1.5deg); }
+  80% { transform: translate(6px, 4px) rotate(-1deg); }
+}
+/* Gnistor */
+.spark {
+  position: absolute; z-index: 5; width: var(--w); height: 5px; margin: -2.5px 0 0 0;
+  border-radius: 3px; pointer-events: none;
+  background: linear-gradient(90deg, rgba(255, 59, 48, 0), #ff3b30 35%, #fff3e0);
+  box-shadow: 0 0 12px 3px rgba(255, 70, 40, .85);
+  transform-origin: 0 50%;
+  animation: spark var(--t) cubic-bezier(.15, .7, .3, 1) forwards;
+}
+@keyframes spark {
+  0% { transform: rotate(var(--a)) translateX(12px); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: rotate(var(--a)) translateX(var(--d)) scaleX(.3); opacity: 0; }
 }
 .unit { font-size: clamp(18px, 5vw, 26px); color: var(--muted); }
 .hero.at-limit .speed { color: #FFC800; text-shadow: 0 0 20px rgba(255, 200, 0, .45); }
@@ -99,9 +130,6 @@ html, body { overflow-x: clip; }
 .replay:hover { color: var(--fg); border-color: rgba(255, 255, 255, .5); }
 .hero + main { padding-top: 8px; }
 
-/* "Minska rörelse": ingen skakning och inget pulserande sken */
-.hero.calm.over .sign { animation: none; }
-.hero.calm.over::before { animation: none; opacity: .7; }
 h1 { font-size: clamp(32px, 7vw, 52px); line-height: 1.1; margin: 0 0 12px; font-weight: 900; }
 h2 { margin-top: 40px; font-size: 22px; }
 p, li { color: var(--fg); }
