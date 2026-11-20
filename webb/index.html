@@ -74,8 +74,8 @@
   const LIMIT = 70, TARGET = LIMIT + 3, DURATION = 2600;
   const hero = document.getElementById("hero");
   const speed = document.getElementById("speed");
-  // Den som valt "minska rörelse" i sitt system får slutbilden direkt (?anim visar ändå animationen).
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches && !/[?&]anim/.test(location.search);
+  // Den som valt "minska rörelse" i sitt system får animationen utan skak och pulserande sken.
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) hero.classList.add("calm");
   let raf = 0, timers = [];
 
   function finish() {
@@ -90,7 +90,6 @@
     timers.forEach(clearTimeout);
     timers = [];
     hero.classList.remove("over", "show-text", "show-plate", "done");
-    if (reduce) { speed.textContent = TARGET; hero.classList.add("still", "over", "show-text", "show-plate", "done"); return; }
     const start = performance.now();
     const tick = (now) => {
       const t = Math.min(1, (now - start) / DURATION);
