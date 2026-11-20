@@ -70,7 +70,7 @@ html, body { overflow-x: clip; }
   100% { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 .plate {
-  position: absolute; z-index: 1;
+  position: absolute; z-index: 3; /* ovanpå texten */
   width: clamp(130px, 36vw, 230px); height: auto;
   right: clamp(-150px, -22vw, -70px); bottom: -55%;
   filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .55));

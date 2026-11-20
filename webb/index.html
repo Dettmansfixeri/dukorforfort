@@ -78,11 +78,17 @@
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) hero.classList.add("calm");
   let raf = 0, timers = [];
 
-  function finish() {
-    speed.textContent = TARGET;
+  // Texten kommer direkt när hastigheten går över gränsen (71), tavlan strax efter.
+  function overLimit() {
+    if (hero.classList.contains("show-text")) return;
     hero.classList.add("over", "show-text");
     timers.push(setTimeout(() => hero.classList.add("show-plate"), 450));
     timers.push(setTimeout(() => hero.classList.add("done"), 1500));
+  }
+
+  function finish() {
+    speed.textContent = TARGET;
+    overLimit();
   }
 
   function play() {
@@ -96,7 +102,7 @@
       const eased = 1 - Math.pow(1 - t, 3);            // snabbt i början, saktar in mot slutet
       const v = Math.round(eased * TARGET);
       speed.textContent = v;
-      hero.classList.toggle("over", v > LIMIT);
+      if (v > LIMIT) overLimit();
       if (t < 1) raf = requestAnimationFrame(tick); else finish();
     };
     raf = requestAnimationFrame(tick);
