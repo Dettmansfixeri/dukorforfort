@@ -72,8 +72,10 @@
 <script>
 (() => {
   const LIMIT = 70, TARGET = LIMIT + 3;
-  const FAST_MS = 2500;   // 0 -> 70
-  const STEP_MS = 550;    // sedan segt: 71, 72, 73 med en paus mellan varje
+  const SLOW_FROM = 67;   // härifrån räknas det en km/h i taget
+  const FAST_MS = 2200;   // 0 -> 66
+  // Paus före varje km/h från 67: saktar in mot 70, sedan segt förbi gränsen.
+  const STEPS = { 67: 60, 68: 280, 69: 370, 70: 460, 71: 600, 72: 550, 73: 550 };
   const hero = document.getElementById("hero");
   const speed = document.getElementById("speed");
   let raf = 0, timers = [];
@@ -129,16 +131,17 @@
     const tick = (now) => {
       const t = Math.min(1, (now - start) / FAST_MS);
       const eased = 1 - Math.pow(1 - t, 2);            // snabbt, bromsar lite in mot 70
-      const v = Math.round(eased * LIMIT);
-      speed.textContent = v;
-      hero.classList.toggle("at-limit", v === LIMIT);   // gul exakt på gränsen
+      speed.textContent = Math.round(eased * (SLOW_FROM - 1));
       if (t < 1) { raf = requestAnimationFrame(tick); return; }
-      // Över gränsen: en km/h i taget
-      for (let v = LIMIT + 1; v <= TARGET; v++) {
+      // En km/h i taget
+      let at = 0;
+      for (let v = SLOW_FROM; v <= TARGET; v++) {
+        at += STEPS[v];
         timers.push(setTimeout(() => {
           speed.textContent = v;
-          if (v === TARGET) finish(); else overLimit(v);
-        }, (v - LIMIT) * STEP_MS));
+          hero.classList.toggle("at-limit", v === LIMIT);   // gul exakt på gränsen
+          if (v === TARGET) finish(); else if (v > LIMIT) overLimit(v);
+        }, at));
       }
     };
     raf = requestAnimationFrame(tick);
