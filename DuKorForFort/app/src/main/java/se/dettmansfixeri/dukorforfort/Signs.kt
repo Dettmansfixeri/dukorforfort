@@ -76,7 +76,7 @@ object SignPainter {
         val p = platePaint(u, text, tf)
         val right = 50f * u + p.measureText(text) / 2f
         val last = p.measureText(text.takeLast(1))
-        return (right - last - 4f * u)..(right + 4f * u)
+        return (right - last - 8f * u)..width
     }
 
     /** Skylten som bild, till notisen. */
@@ -114,8 +114,9 @@ fun UnderSign(text: String, width: Dp = 190.dp, onSecret: (() -> Unit)? = null) 
         mod = mod.pointerInput(text) {
             detectTapGestures { pos ->
                 if (pos.x in SignPainter.lastCharRange(size.width.toFloat(), text, tf)) {
+                    // Upp till 2 s mellan varje tryck, annars börjar räkningen om.
                     val now = SystemClock.uptimeMillis()
-                    while (taps.isNotEmpty() && now - taps.first() > 3000) taps.removeFirst()
+                    if (taps.isNotEmpty() && now - taps.last() > 2000) taps.clear()
                     taps.addLast(now)
                     if (taps.size >= 5) { taps.clear(); onSecret() }
                 }
