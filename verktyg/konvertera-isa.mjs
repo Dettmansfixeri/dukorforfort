@@ -137,8 +137,11 @@ function interval(r, n) { // n = 1 eller 2 (Tidsintervall 11 / 12)
 let skippedVehicle = 0;
 function deviations(r) {
   if (!isSet(r.HAVHAST1) || r.HAVHAST1 <= 0) return null;
-  // Avvikelser som bara gäller vissa fordon (t.ex. tung trafik) hoppar vi över.
-  if (isSet(r.HAVGIE1) || isSet(r.FORDTYP11) || (isSet(r.TOTALVIKT1) && r.TOTALVIKT1 > 0)) {
+  // Avvikelser som bara gäller vissa fordonstyper eller vikter hoppar vi över.
+  // HAVGIE1 ("gäller inte/endast") utan angiven fordonstyp eller vikt säger inget
+  // om vilka fordon som avses – sådana (oftast skolzoner) behandlas som gällande alla.
+  const fordon = [r.FORDTYP11, r.FORDTYP12, r.FORDTYP13].some(isSet);
+  if (fordon || (isSet(r.TOTALVIKT1) && r.TOTALVIKT1 > 0)) {
     skippedVehicle++;
     return null;
   }
