@@ -20,6 +20,9 @@
 //          k  klockslag som [start, slut] i formen TTMM (slut < start betyder över midnatt)
 //          s/e  datumintervall MMDD (saknas = hela året)
 //          w  veckodagsintervall [startdag, slutdag] (saknas = alla)
+//          f  fordonskoder som avvikelsen avser (saknas = alla fordon), se lista nedan
+//          fi 1 = gäller INTE fordonen i f, 2 = gäller ENDAST dem (saknas = endast)
+//          tv gäller fordon över denna totalvikt i ton
 
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -134,23 +137,31 @@ function interval(r, n) { // n = 1 eller 2 (Tidsintervall 11 / 12)
   return Object.keys(o).length ? o : null;
 }
 
-let skippedVehicle = 0;
+// Fordonskoder enligt Trafikverkets dataproduktspecifikation för Hastighetsgräns:
+//  10 bil, 20 buss, 30 cykel, 40 fordon, 49 personbil klass II, 50 fordon i linjetrafik,
+//  70 fordon för rörelsehindrade m. tillstånd, 80 hästfordon, 90 lastbil, 100 lätt lastbil,
+//  110 lätt terrängvagn, 120 moped, 130 moped kl I, 140 moped kl II, 150 motorcykel,
+//  160 motordrivet fordon med släp (annat än påhängsvagn/enaxlig), 170 motordrivna fordon,
+//  180 motorredskap, 190/200 motorredskap kl I/II, 210 personbil, 230 terrängmotorfordon,
+//  240 terrängmotorfordon och terrängsläp, 250 terrängskoter, 260 terrängvagn, 270 traktor,
+//  280 tung lastbil, 290 tung terrängvagn, 300 utryckningsfordon, 9999 okänt.
+// "Gäller inte/endast fordon": 1 = gäller inte, 2 = gäller endast.
+// Allt sparas så att appen kan räkna ut gränsen för det fordon man valt.
+let withVehicle = 0;
 function deviations(r) {
   if (!isSet(r.HAVHAST1) || r.HAVHAST1 <= 0) return null;
-  // Avvikelser som bara gäller vissa fordonstyper eller vikter hoppar vi över.
-  // HAVGIE1 ("gäller inte/endast") utan angiven fordonstyp eller vikt säger inget
-  // om vilka fordon som avses – sådana (oftast skolzoner) behandlas som gällande alla.
-  const fordon = [r.FORDTYP11, r.FORDTYP12, r.FORDTYP13].some(isSet);
-  if (fordon || (isSet(r.TOTALVIKT1) && r.TOTALVIKT1 > 0)) {
-    skippedVehicle++;
-    return null;
-  }
+  const f = [r.FORDTYP11, r.FORDTYP12, r.FORDTYP13].filter(isSet);
+  const vehicle = {};
+  if (f.length) vehicle.f = f;
+  if (f.length && isSet(r.HAVGIE1)) vehicle.fi = r.HAVGIE1; // 1 = inte, 2 = endast
+  if (isSet(r.TOTALVIKT1) && r.TOTALVIKT1 > 0) vehicle.tv = r.TOTALVIKT1; // ton
+  if (Object.keys(vehicle).length) withVehicle++;
   const out = [];
   for (const n of [1, 2]) {
     const iv = interval(r, n);
-    if (iv) out.push({ v: r.HAVHAST1, ...iv });
+    if (iv) out.push({ v: r.HAVHAST1, ...vehicle, ...iv });
   }
-  return out.length ? out : [{ v: r.HAVHAST1 }];
+  return out.length ? out : [{ v: r.HAVHAST1, ...vehicle }];
 }
 
 // ---------- Läs, slå ihop, skriv ----------
@@ -231,7 +242,7 @@ const rowsOut = [
   ["Rader i ISA-filen", totalIn],
   ["Sträckor efter hopslagning", written],
   ["Utan geometri/hastighet", noGeom],
-  ["Fordonsspecifika avvikelser (skippade)", skippedVehicle],
+  ["Avvikelser med fordonstyp/vikt", withVehicle],
   ["Okomprimerad fil", mb(ndjsonPath)],
   ["Komprimerad fil (.gz)", mb(gzPath)],
   ["Tid", ((Date.now() - t0) / 1000).toFixed(0) + " s"],
