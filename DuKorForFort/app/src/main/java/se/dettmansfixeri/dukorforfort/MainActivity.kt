@@ -1,7 +1,10 @@
 package se.dettmansfixeri.dukorforfort
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -49,8 +52,72 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private const val PREFS = "installningar"
+private const val KEY_DISCLAIMER = "godkant_ansvarsfriskrivning_v1"
+
 @Composable
 fun App() {
+    val ctx = LocalContext.current
+    val prefs = remember { ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+    var accepted by remember { mutableStateOf(prefs.getBoolean(KEY_DISCLAIMER, false)) }
+    if (!accepted) {
+        Disclaimer(onAccept = {
+            prefs.edit().putBoolean(KEY_DISCLAIMER, true).apply()
+            accepted = true
+        })
+        return
+    }
+    SpeedScreen()
+}
+
+/** Visas vid första start. Appen går inte att använda förrän man tryckt "Jag förstår". */
+@Composable
+fun Disclaimer(onAccept: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color(0xFF101418)).safeDrawingPadding().padding(24.dp)) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Innan du kör", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Spacer(Modifier.height(16.dp))
+            val body = Color.White.copy(alpha = 0.85f)
+            Text(
+                "Appen är ett hjälpmedel och ersätter inte vägmärkena. " +
+                        "Det är alltid skyltarna och trafikreglerna på platsen som gäller.",
+                fontSize = 17.sp, color = body
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Hastighetsgränserna kommer från Trafikverkets nationella vägdatabas (NVDB). " +
+                        "De kan vara inaktuella, felaktiga eller saknas, och tillfälliga gränser " +
+                        "(t.ex. vid vägarbeten) finns inte med. Hastigheten mäts med telefonens GPS " +
+                        "och kan skilja sig från bilens hastighetsmätare.",
+                fontSize = 17.sp, color = body
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Du ansvarar själv för hur du kör. Hantera inte telefonen under körning.",
+                fontSize = 17.sp, color = body
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Appen är gratis och tillhandahålls i befintligt skick, utan garantier. " +
+                        "Det finns ingen garanti för att appen eller hastighetsdatan alltid är " +
+                        "tillgänglig eller fungerar, och appen kan ändras eller läggas ner utan förvarning. " +
+                        "Dettmans Fixeri ansvarar inte för böter, olyckor eller andra följder " +
+                        "av att appen används. Trafikverket står inte bakom appen.",
+                fontSize = 17.sp, color = body
+            )
+            Spacer(Modifier.height(28.dp))
+            Button(onClick = onAccept, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                Text("Jag förstår", fontSize = 18.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun SpeedScreen() {
     val ctx = LocalContext.current
     val state by SpeedTracker.state.collectAsStateWithLifecycle()
     var hasPermission by remember {

@@ -1,14 +1,16 @@
-# Hämtar alla hastighetsgränser från Trafikverket och publicerar dem som en release.
-# Appen laddar ner filerna från:
-#   https://github.com/<konto>/<repo>/releases/latest/download/version.json
-#   https://github.com/<konto>/<repo>/releases/latest/download/hastigheter.ndjson.gz
+# Hämtar Trafikverkets "ISA hastighet" från Lastkajen, gör om den till appens format
+# och publicerar resultatet som en release. Appen laddar ner filerna från:
+#   https://github.com/Dettmansfixeri/dukorforfort/releases/latest/download/version.json
+#   https://github.com/Dettmansfixeri/dukorforfort/releases/latest/download/hastigheter.ndjson.gz
 #
-# Kräver en secret i repot: TRAFIKVERKET_API_KEY (Settings → Secrets and variables → Actions).
+# Kräver secrets i repot (Settings → Secrets and variables → Actions):
+#   LASTKAJEN_USER       användarnamn på lastkajen.trafikverket.se
+#   LASTKAJEN_PASSWORD   lösenord på lastkajen.trafikverket.se
 name: Hastighetsdata
 
 on:
   schedule:
-    - cron: "0 3 1 * *"   # den 1:a varje månad kl 03:00 UTC
+    - cron: "0 4 * * 2"   # varje tisdag kl 04:00 UTC (Trafikverket publicerar på måndagar)
   workflow_dispatch:       # knapp "Run workflow" för att köra direkt
 
 permissions:
@@ -17,20 +19,36 @@ permissions:
 jobs:
   hamta:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
-      - name: Hämta från Trafikverket
+      - name: Hämta ISA hastighet från Lastkajen
         env:
-          TRAFIKVERKET_API_KEY: ${{ secrets.TRAFIKVERKET_API_KEY }}
-        run: node verktyg/hamta-hastigheter.mjs
+          LASTKAJEN_USER: ${{ secrets.LASTKAJEN_USER }}
+          LASTKAJEN_PASSWORD: ${{ secrets.LASTKAJEN_PASSWORD }}
+        run: node verktyg/hamta-isa.mjs
+
+      - name: Avbryt om filen är samma som förra releasen
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          KALLA=$(tr '[:upper:]' '[:lower:]' < isa-test/kalla.txt)
+          FORRA=$(gh release view --json body -q .body 2>/dev/null | grep -io 'isa_gpkg_[0-9]*\.zip' | head -1 | tr '[:upper:]' '[:lower:]' || true)
+          echo "Källa nu: $KALLA, förra releasen: ${FORRA:-ingen}"
+          if [ "$KALLA" = "$FORRA" ]; then echo "same=true" >> "$GITHUB_OUTPUT"; echo "Ingen ny data, hoppar över."; fi
+
+      - name: Konvertera till appens format
+        if: steps.check.outputs.same != 'true'
+        run: node verktyg/konvertera-isa.mjs isa-test/ISA.gpkg "$(cat isa-test/kalla.txt)"
 
       - name: Publicera release
+        if: steps.check.outputs.same != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
