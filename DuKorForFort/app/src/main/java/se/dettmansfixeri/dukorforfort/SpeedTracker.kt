@@ -56,6 +56,7 @@ data class Settings(
     val margin: Int = 0,
     val beep: Boolean = true,
     val vibrate: Boolean = true,
+    val heckle: HeckleMode = HeckleMode.NICE,
     val auto: AutoMode = AutoMode.OFF,
     val carAddress: String? = null,
     val carName: String? = null,
@@ -95,6 +96,8 @@ object SpeedTracker {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var locationManager: LocationManager? = null
     private var warner: Warner? = null
+    var heckler: Heckler? = null
+        private set
     private val matcher = RoadMatcher()
     private var lastFix: Location? = null
     private var updateJob: Job? = null
@@ -128,6 +131,7 @@ object SpeedTracker {
             margin = p.getInt("marginal", 0).coerceIn(0, MAX_MARGIN),
             beep = p.getBoolean("pip", true),
             vibrate = p.getBoolean("vibrera", true),
+            heckle = HeckleMode.fromName(p.getString("forolampning", null)),
             auto = AutoMode.fromName(p.getString("auto", null)),
             carAddress = p.getString("bil_adress", null),
             carName = p.getString("bil_namn", null),
@@ -137,14 +141,28 @@ object SpeedTracker {
     fun setSettings(ctx: Context, s: Settings) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString("fordon", s.vehicle.name).putBoolean("slap", s.trailer)
-            .putInt("marginal", s.margin).putBoolean("pip", s.beep).putBoolean("vibrera", s.vibrate)
+            .putInt("marginal", s.margin).putBoolean("pip", s.beep).putBoolean("vibrera", s.vibrate).putString("forolampning", s.heckle.name)
             .putString("auto", s.auto.name).putString("bil_adress", s.carAddress).putString("bil_namn", s.carName)
             .apply()
         _settings.value = s
         lastFix?.let { onLocation(it) } // räkna om direkt
     }
 
-    private fun warner(ctx: Context) = warner ?: Warner(ctx.applicationContext).also { warner = it }
+    private fun warner(ctx: Context): Warner {
+        if (heckler == null) heckler = Heckler(ctx.applicationContext)
+        return warner ?: Warner(ctx.applicationContext).also { warner = it }
+    }
+
+    /** Skapar rösten i förväg (testsidan). */
+    fun prepareVoice(ctx: Context): Heckler {
+        warner(ctx)
+        return heckler!!
+    }
+
+    private fun releaseWarners() {
+        warner?.release(); warner = null
+        heckler?.release(); heckler = null
+    }
 
     @SuppressLint("MissingPermission")
     fun start(context: Context, auto: Boolean = false) {
@@ -209,7 +227,7 @@ object SpeedTracker {
         locationManager?.removeUpdates(listener)
         try { locationManager?.unregisterGnssStatusCallback(gnss) } catch (e: Exception) { }
         locationManager = null
-        if (!simulating) { warner?.release(); warner = null }
+        if (!simulating) releaseWarners()
         updateJob?.cancel(); updateJob = null
         watchdogJob?.cancel(); watchdogJob = null
         lastFix = null
@@ -262,12 +280,14 @@ object SpeedTracker {
                 status = if (!armed) waitingText() else "Hastighetsdata: Trafikverket (ISA)")
         }
         warner?.update(over, s)
+        heckler?.update(over > 0, speed, limit, s.heckle)
     }
 
     private fun setNoLimit(speed: Int?, status: String) {
         _state.update { it.copy(speedKmh = speed, limitKmh = null, signedKmh = null, reason = null,
             tooFast = false, waiting = !armed, status = if (!armed) waitingText() else status) }
         warner?.update(0, _settings.value)
+        heckler?.update(false, null, null, _settings.value.heckle)
     }
 
     /** Gränsen som gäller för valt fordon: skyltat, tids-/fordonsregler och fordonets egen maxfart. */
@@ -301,18 +321,20 @@ object SpeedTracker {
                 limitStale = false, tooFast = over > 0, waiting = false, status = "Testläge")
         }
         warner(ctx).update(over, s)
+        heckler?.update(over > 0, speed, limit, s.heckle)
     }
 
     fun endSimulation() {
         if (!simulating) return
         simulating = false
         warner?.update(0, _settings.value)
+        heckler?.reset()
         if (_state.value.running) {
             _state.update { it.copy(speedKmh = null, limitKmh = null, signedKmh = null, reason = null,
                 tooFast = false, status = "Väntar på GPS…") }
             lastFix?.let { onLocation(it) }
         } else {
-            warner?.release(); warner = null
+            releaseWarners()
             _state.value = UiState()
         }
     }

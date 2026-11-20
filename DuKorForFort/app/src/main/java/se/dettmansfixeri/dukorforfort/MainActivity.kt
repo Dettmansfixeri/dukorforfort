@@ -183,6 +183,19 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                 )
                 SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
                 SwitchRow("Pip", null, s.beep) { s = s.copy(beep = it) }
+                Text("Röst", Modifier.padding(top = 6.dp))
+                Text("Pratar om du ligger över gränsen mer än 5 sekunder", fontSize = 13.sp, color = Dim)
+                Row {
+                    HeckleMode.entries.forEach { m ->
+                        Row(
+                            Modifier.clickable { s = s.copy(heckle = m) }.padding(end = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = s.heckle == m, onClick = { s = s.copy(heckle = m) })
+                            Text(m.label)
+                        }
+                    }
+                }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text("Vad kör du?", fontWeight = FontWeight.Bold)

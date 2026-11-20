@@ -86,6 +86,30 @@ fun TestScreen(onClose: () -> Unit) {
                 fontSize = 13.sp, color = dim
             )
 
+            // ---------- Röst ----------
+            Section("Röst")
+            val voice = remember { SpeedTracker.prepareVoice(ctx) }
+            val voiceReady by voice.ready.collectAsStateWithLifecycle()
+            var voiceN by remember { mutableIntStateOf(0) }
+            Info("Läge", settings.heckle.label)
+            Info("Svensk röst", when (voiceReady) {
+                null -> "startar…"
+                true -> "finns"
+                false -> "saknas – installera svensk röst i telefonens talsyntes"
+            })
+            val testSpeed = speed.toInt().coerceAtLeast(signed + 1)
+            Text("Nästa: \"${Heckler.line(voiceN, if (settings.heckle == HeckleMode.OFF) HeckleMode.NICE else settings.heckle, testSpeed, signed)}\"",
+                fontSize = 13.sp, color = dim)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                Button(onClick = {
+                    val mode = if (settings.heckle == HeckleMode.OFF) HeckleMode.NICE else settings.heckle
+                    voice.say(Heckler.line(voiceN, mode, testSpeed, signed), interrupt = true)
+                    voiceN++
+                }) { Text("Säg nästa") }
+                OutlinedButton(onClick = { voiceN = 0 }) { Text("Börja om", color = Color.White) }
+            }
+            Text("Med \"Låtsas köra\" på börjar den prata själv efter 5 s över gränsen.", fontSize = 13.sp, color = dim)
+
             // ---------- Automatik ----------
             Section("Automatisk start")
             Info("Läge", settings.auto.label)
