@@ -148,20 +148,18 @@
     raf = requestAnimationFrame(tick);
   }
 
-  // Senaste appbygget från GitHub: länka till filen med versionen i namnet och visa version + datum.
-  // Svarar inte GitHub ligger den fasta länken kvar.
-  fetch("https://api.github.com/repos/Dettmansfixeri/dukorforfort/releases/tags/app")
+  // Senaste appbygget: GitHub lägger app-version.json här på sajten efter varje bygge.
+  // Finns den inte ligger den fasta länken kvar.
+  fetch("app-version.json", { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : Promise.reject()))
-    .then((rel) => {
-      const asset = (rel.assets || []).find((a) => /^DuKorForFort-[\d.]+\.apk$/.test(a.name));
-      if (!asset) return;
-      const version = asset.name.replace(/^DuKorForFort-|\.apk$/g, "");
-      const when = new Date(asset.updated_at || rel.published_at).toLocaleString("sv-SE", {
+    .then((app) => {
+      if (!app.version || !app.url) return;
+      const when = new Date(app.built).toLocaleString("sv-SE", {
         day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
       });
-      document.getElementById("apk").href = asset.browser_download_url;
+      document.getElementById("apk").href = app.url;
       const info = document.getElementById("apk-version");
-      info.textContent = `Version ${version} · byggd ${when} · ${(asset.size / 1048576).toFixed(1).replace(".", ",")} MB`;
+      info.textContent = `Version ${app.version} · byggd ${when} · ${(app.size / 1048576).toFixed(1).replace(".", ",")} MB`;
       info.hidden = false;
     })
     .catch(() => {});
