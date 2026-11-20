@@ -16,6 +16,14 @@ android {
         versionName = "1.1"
     }
 
+    signingConfigs {
+        // På GitHub pekar DEBUG_KEYSTORE på samma nyckel som används lokalt,
+        // så att appen kan uppdateras utan att avinstalleras.
+        getByName("debug") {
+            System.getenv("DEBUG_KEYSTORE")?.let { storeFile = file(it) }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

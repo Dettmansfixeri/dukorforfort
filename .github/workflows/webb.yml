@@ -1,0 +1,33 @@
+# Laddar upp webbsidan (mappen webb/) till Inleed via FTP när något i webb/ ändras.
+#
+# Kräver secrets i repot (Settings → Secrets and variables → Actions):
+#   FTP_SERVER     t.ex. ftp.dettmansfixeri.se (står i DirectAdmin)
+#   FTP_USERNAME   FTP-kontots användarnamn
+#   FTP_PASSWORD   FTP-kontots lösenord
+# FTP-kontot ska ha sajtens mapp (public_html för dukorforfort.dettmansfixeri.se) som sin rot.
+name: Webbsida
+
+on:
+  push:
+    branches: [main]
+    paths: ["webb/**", ".github/workflows/webb.yml"]
+  workflow_dispatch:
+
+concurrency: webb
+
+jobs:
+  ladda-upp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ladda upp till Inleed
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./webb/
+          server-dir: ./

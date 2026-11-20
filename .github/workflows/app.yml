@@ -1,0 +1,60 @@
+# Bygger appen när koden ändras och lägger APK:n i releasen "app":
+#   https://github.com/Dettmansfixeri/dukorforfort/releases/download/app/DuKorForFort.apk
+# Releasen markeras INTE som "latest" – den platsen är hastighetsdatans.
+#
+# Secret (Settings → Secrets and variables → Actions):
+#   APP_KEYSTORE_B64   signeringsnyckeln (debug.keystore) som base64, så att varje
+#                      bygge signeras likadant och kan installeras över det förra.
+name: App
+
+on:
+  push:
+    branches: [main]
+    paths: ["DuKorForFort/**", ".github/workflows/app.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: app
+
+jobs:
+  bygg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: DuKorForFort
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Signeringsnyckel
+        env:
+          KEYSTORE: ${{ secrets.APP_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then echo "APP_KEYSTORE_B64 saknas"; exit 1; fi
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/signering.keystore"
+          echo "DEBUG_KEYSTORE=$RUNNER_TEMP/signering.keystore" >> "$GITHUB_ENV"
+
+      - name: Bygg och testa
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug testDebugUnitTest --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/DuKorForFort.apk"
+
+      - name: Publicera APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          gh release delete app --cleanup-tag --yes || true
+          gh release create app "$RUNNER_TEMP/DuKorForFort.apk" \
+            --title "Appen $VERSION" \
+            --notes "Senaste bygget av appen (version $VERSION, ${GITHUB_SHA::7}). Ladda ner DuKorForFort.apk nedan." \
+            --target "$GITHUB_SHA" \
+            --latest=false
