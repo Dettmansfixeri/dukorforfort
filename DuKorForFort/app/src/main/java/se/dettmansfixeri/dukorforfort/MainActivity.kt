@@ -15,7 +15,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,7 +68,112 @@ fun App() {
         })
         return
     }
-    SpeedScreen()
+    DataGate()
+}
+
+/**
+ * Ser till att hastighetsdatan finns i telefonen. Första gången laddas den ner
+ * (ingenting ligger inbyggt i appen). Vid varje start kollas om en nyare version finns.
+ */
+@Composable
+fun DataGate() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val dataState by DataManager.state.collectAsStateWithLifecycle()
+    val update by DataManager.update.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        DataManager.load(ctx)
+        SpeedTracker.loadSettings(ctx)
+        DataManager.checkForUpdate(ctx)
+    }
+
+    val hasData = DataManager.data != null
+    when {
+        dataState is DataManager.State.Downloading && !hasData ->
+            DownloadScreen((dataState as DataManager.State.Downloading).progress, null) {}
+        !hasData -> DownloadScreen(null, (dataState as? DataManager.State.Failed)?.message) {
+            scope.launch { DataManager.download(ctx) }
+        }
+        else -> SpeedScreen()
+    }
+
+    val u = update
+    if (u != null && hasData) {
+        AlertDialog(
+            onDismissRequest = { DataManager.dismissUpdate() },
+            title = { Text("Nya hastighetsgränser") },
+            text = { Text("Det finns uppdaterad data från Trafikverket (${DataManager.prettyVersion(u.version)}, ${u.size / 1048576} MB). Ladda ner nu?") },
+            confirmButton = { TextButton(onClick = { scope.launch { DataManager.download(ctx) } }) { Text("Ladda ner") } },
+            dismissButton = { TextButton(onClick = { DataManager.dismissUpdate() }) { Text("Senare") } },
+        )
+    }
+}
+
+@Composable
+fun DownloadScreen(progress: Float?, error: String?, onDownload: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color(0xFF101418)).safeDrawingPadding().padding(24.dp)) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+            Text("Hastighetsdata", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Appen behöver ladda ner Sveriges hastighetsgränser från Trafikverket (ungefär 50 MB). " +
+                        "Sedan fungerar den utan internet, och din position lämnar aldrig telefonen. " +
+                        "Använd gärna wifi.",
+                fontSize = 17.sp, color = Color.White.copy(alpha = 0.85f)
+            )
+            Spacer(Modifier.height(28.dp))
+            if (progress != null) {
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(8.dp))
+                Spacer(Modifier.height(12.dp))
+                Text("Laddar ner… ${(progress * 100).toInt()} %", color = Color.White.copy(alpha = 0.7f))
+            } else {
+                if (error != null) {
+                    Text(error, color = Color(0xFFFF8A80), fontSize = 15.sp)
+                    Spacer(Modifier.height(12.dp))
+                }
+                Button(onClick = onDownload, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                    Text(if (error != null) "Försök igen" else "Ladda ner", fontSize = 18.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VehicleDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () -> Unit) {
+    var vehicle by remember { mutableStateOf(current.vehicle) }
+    var trailer by remember { mutableStateOf(current.trailer) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Vad kör du?") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Vehicle.entries.forEach { v ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { vehicle = v }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = vehicle == v, onClick = { vehicle = v })
+                        Text(v.label)
+                    }
+                }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Row(
+                    Modifier.fillMaxWidth().clickable { trailer = !trailer }.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Släp/efterfordon")
+                        Text("Max ${Vehicle.TRAILER_MAX} km/h", fontSize = 13.sp, color = Color.White.copy(alpha = 0.6f))
+                    }
+                    Switch(checked = trailer, onCheckedChange = { trailer = it })
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onDone(Settings(vehicle, trailer)) }) { Text("Klar") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Avbryt") } },
+    )
 }
 
 /** Visas vid första start. Appen går inte att använda förrän man tryckt "Jag förstår". */
@@ -152,13 +258,31 @@ fun SpeedScreen() {
     )
     val bg = if (state.tooFast) lerp(Color(0xFF7F0000), Color(0xFFE53935), t) else Color(0xFF101418)
 
+    val settings by SpeedTracker.settings.collectAsStateWithLifecycle()
+    val dataState by DataManager.state.collectAsStateWithLifecycle()
+    var showVehicle by remember { mutableStateOf(false) }
+
     Box(Modifier.fillMaxSize().background(bg).safeDrawingPadding().padding(16.dp)) {
+        // Valt fordon uppe till vänster – tryck för att ändra.
+        OutlinedButton(
+            onClick = { showVehicle = true },
+            modifier = Modifier.align(Alignment.TopStart)
+        ) {
+            Text(settings.vehicle.label + if (settings.trailer) " + släp" else "", color = Color.White)
+        }
         Column(
             Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             SpeedSign(state.limitKmh, state.limitStale)
+            val signed = state.signedKmh
+            if (state.reason != null && signed != null && signed != state.limitKmh) {
+                Text(
+                    "Skyltat $signed · ${state.limitKmh} gäller dig (${state.reason})",
+                    fontSize = 14.sp, color = Color.White.copy(alpha = 0.75f)
+                )
+            }
             Spacer(Modifier.height(8.dp))
             UnderSign("IDIOT")
             Spacer(Modifier.height(24.dp))
@@ -186,6 +310,18 @@ fun SpeedScreen() {
                 color = Color.White.copy(alpha = 0.6f),
                 textAlign = TextAlign.Center
             )
+            val ds = dataState
+            Text(
+                when (ds) {
+                    is DataManager.State.Ready -> "Data från ${DataManager.prettyVersion(ds.version)}"
+                    is DataManager.State.Downloading -> "Uppdaterar data… ${(ds.progress * 100).toInt()} %"
+                    is DataManager.State.Failed -> "Uppdateringen misslyckades: ${ds.message}"
+                    else -> ""
+                },
+                fontSize = 12.sp,
+                color = Color.White.copy(alpha = 0.45f),
+                textAlign = TextAlign.Center
+            )
             if (hasPermission) {
                 Spacer(Modifier.height(16.dp))
                 if (state.running) {
@@ -197,6 +333,13 @@ fun SpeedScreen() {
         }
     }
 
+    if (showVehicle) {
+        VehicleDialog(
+            current = settings,
+            onDone = { SpeedTracker.setSettings(ctx, it); showVehicle = false },
+            onDismiss = { showVehicle = false },
+        )
+    }
 }
 
 /*

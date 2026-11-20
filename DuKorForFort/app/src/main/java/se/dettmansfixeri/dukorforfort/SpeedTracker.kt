@@ -10,51 +10,95 @@ import android.media.ToneGenerator
 import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
 data class UiState(
     val running: Boolean = false,
     val speedKmh: Int? = null,
+    /** Gränsen som gäller för valt fordon just nu – det som visas på skylten. */
     val limitKmh: Int? = null,
+    /** Skyltad gräns på vägen (utan fordon/tid), för förklaringen under skylten. */
+    val signedKmh: Int? = null,
+    /** Varför [limitKmh] skiljer sig från [signedKmh], t.ex. "släp" eller "tidsbegränsning". */
+    val reason: String? = null,
     val limitStale: Boolean = false,
     val status: String = "Väntar på GPS…",
     val tooFast: Boolean = false,
 )
 
+data class Settings(val vehicle: Vehicle = Vehicle.PERSONBIL, val trailer: Boolean = false)
+
 /**
- * Själva bevakningen: GPS, hastighetsgräns och pip.
+ * Själva bevakningen: GPS, uppslag av hastighetsgräns i den lokala datan och pip.
  * Ägs av [SpeedService] så att den fortsätter när en annan app är framme.
- * Skärmen (MainActivity) läser bara [state].
  */
 object SpeedTracker {
+
+    private const val PREFS = "installningar"
+    private const val KEY_VEHICLE = "fordon"
+    private const val KEY_TRAILER = "slap"
+    /** Pip när man kör så här mycket över gränsen (0 = varje km/h över). */
+    private const val TOLERANCE_KMH = 0
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
 
+    private val _settings = MutableStateFlow(Settings())
+    val settings: StateFlow<Settings> = _settings
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var locationManager: LocationManager? = null
     private var tone: ToneGenerator? = null
-
-    private var lastFetchLocation: Location? = null
-    private var lastFetchTime = 0L
-    private var fetching = false
+    private val matcher = RoadMatcher()
     private var lastBeep = 0L
+    private var lastFix: Location? = null
+    private var updateJob: Job? = null
+    private var appContext: Context? = null
 
     private val listener = LocationListener { onLocation(it) }
+
+    fun loadSettings(ctx: Context) {
+        val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        _settings.value = Settings(Vehicle.fromName(p.getString(KEY_VEHICLE, null)), p.getBoolean(KEY_TRAILER, false))
+    }
+
+    fun setSettings(ctx: Context, s: Settings) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_VEHICLE, s.vehicle.name).putBoolean(KEY_TRAILER, s.trailer).apply()
+        _settings.value = s
+        lastFix?.let { onLocation(it) } // räkna om direkt
+    }
 
     @SuppressLint("MissingPermission")
     fun start(context: Context) {
         if (_state.value.running) return
-        val lm = context.applicationContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val ctx = context.applicationContext
+        appContext = ctx
+        loadSettings(ctx)
+        DataManager.load(ctx)
+        val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         locationManager = lm
         tone = try { ToneGenerator(AudioManager.STREAM_ALARM, 90) } catch (e: Exception) { null }
+        matcher.reset()
         _state.value = UiState(running = true)
         lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, listener, Looper.getMainLooper())
+
+        // Kolla efter ny hastighetsdata en gång per dygn medan appen är igång.
+        updateJob = scope.launch {
+            while (isActive) {
+                delay(DataManager.CHECK_INTERVAL_MS)
+                DataManager.checkForUpdate(ctx)
+            }
+        }
     }
 
     fun stop() {
@@ -62,64 +106,65 @@ object SpeedTracker {
         locationManager = null
         tone?.release()
         tone = null
-        lastFetchLocation = null
-        lastFetchTime = 0L
+        updateJob?.cancel()
+        updateJob = null
+        lastFix = null
         _state.value = UiState(running = false, status = "Stoppad")
     }
 
     private fun onLocation(loc: Location) {
         if (!_state.value.running) return
+        lastFix = loc
         val speed = if (loc.hasSpeed()) (loc.speed * 3.6f).roundToInt() else null
-        _state.update { s ->
-            s.copy(speedKmh = speed, tooFast = speed != null && s.limitKmh != null && speed > s.limitKmh)
+        val data = DataManager.data
+
+        if (data == null) {
+            _state.update { it.copy(speedKmh = speed, limitKmh = null, signedKmh = null, reason = null,
+                tooFast = false, status = "Hastighetsdata saknas") }
+            return
         }
-        maybeBeep()
-        maybeFetchLimit(loc)
+
+        val (e, n) = Sweref99.fromWgs84(loc.latitude, loc.longitude)
+        // Kursen är bara pålitlig när man rör sig.
+        val course = if (loc.hasBearing() && (speed ?: 0) >= 8) loc.bearing else null
+        val accuracy = if (loc.hasAccuracy()) loc.accuracy else null
+        val road = matcher.match(data, e, n, accuracy, course)
+
+        if (road == null) {
+            _state.update { it.copy(speedKmh = speed, limitKmh = null, signedKmh = null, reason = null,
+                tooFast = false, status = "Ingen väg med hastighetsgräns i närheten") }
+            return
+        }
+
+        val s = _settings.value
+        var limit = road.kmh
+        var reason: String? = null
+        if (road.ruleId >= 0) {
+            val now = LocalDateTime.now()
+            val active = data.rules.getOrNull(road.ruleId).orEmpty().filter { it.applies(now, s.vehicle, s.trailer) }
+            active.minByOrNull { it.kmh }?.let { limit = it.kmh; reason = "tids-/fordonsregel" }
+        }
+        s.vehicle.cap(road.kmh, s.trailer)?.let { cap ->
+            if (cap < limit) {
+                limit = cap
+                reason = if (s.trailer && cap == Vehicle.TRAILER_MAX) "släp" else s.vehicle.label.lowercase()
+            }
+        }
+
+        val tooFast = speed != null && speed > limit + TOLERANCE_KMH
+        _state.update {
+            it.copy(speedKmh = speed, limitKmh = limit, signedKmh = road.kmh, reason = reason,
+                limitStale = false, tooFast = tooFast,
+                status = "Hastighetsdata: Trafikverket (ISA)")
+        }
+        if (tooFast) maybeBeep()
     }
 
     private fun maybeBeep() {
-        if (!_state.value.tooFast) return
         val now = System.currentTimeMillis()
         if (now - lastBeep > 5000) {
             lastBeep = now
             tone?.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 400)
-        }
-    }
-
-    private fun maybeFetchLimit(loc: Location) {
-        if (fetching) return
-        val now = System.currentTimeMillis()
-        val prev = lastFetchLocation
-        val moved = prev == null || prev.distanceTo(loc) > 40f
-        val old = now - lastFetchTime > 15_000
-        if (!moved && !old) return
-
-        fetching = true
-        lastFetchLocation = loc
-        lastFetchTime = now
-        scope.launch {
-            try {
-                val limit = TrafikverketApi.fetchSpeedLimit(loc.latitude, loc.longitude)
-                _state.update { s ->
-                    if (!s.running) s
-                    else if (limit == null) s.copy(
-                        limitKmh = null, limitStale = false, tooFast = false,
-                        status = "Ingen hastighetsgräns hittad här"
-                    )
-                    else s.copy(
-                        limitKmh = limit.kmh, limitStale = false,
-                        tooFast = s.speedKmh != null && s.speedKmh > limit.kmh,
-                        status = "Hastighetsgräns från Trafikverket (NVDB)"
-                    )
-                }
-            } catch (e: Exception) {
-                _state.update {
-                    if (!it.running) it
-                    else it.copy(limitStale = true, status = "Fel: ${e.message ?: e.javaClass.simpleName}")
-                }
-            } finally {
-                fetching = false
-            }
         }
     }
 }

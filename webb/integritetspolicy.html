@@ -10,21 +10,26 @@
 <main>
   <p><a href="index.html">← Tillbaka</a></p>
   <h1>Integritetspolicy</h1>
-  <p class="lead">För appen ”Du kör för fort, IDIOT!” (se.dettmansfixeri.dukorforfort). Senast uppdaterad 19 november 2026.</p>
+  <p class="lead">För appen ”Du kör för fort, IDIOT!” (se.dettmansfixeri.dukorforfort). Senast uppdaterad 20 november 2026.</p>
 
   <h2>Kort version</h2>
-  <p>Appen samlar inte in, sparar inte och säljer inte några uppgifter om dig. Det finns inga konton, ingen reklam och ingen spårning.</p>
+  <p>Appen samlar inte in, sparar inte och säljer inte några uppgifter om dig. Din position lämnar aldrig telefonen. Det finns inga konton, ingen reklam och ingen spårning.</p>
 
   <h2>Platsdata</h2>
-  <p>Appen använder telefonens GPS för att räkna ut din hastighet och för att ta reda på vilken hastighetsgräns som gäller där du är. Det sker bara medan appen är öppen på skärmen.</p>
-  <p>För att hämta hastighetsgränsen skickar appen din position (koordinater) till vår server på dukorforfort.dettmansfixeri.se. Servern frågar i sin tur Trafikverkets öppna API (api.trafikinfo.trafikverket.se) vilken hastighetsgräns som gäller på platsen och skickar svaret tillbaka till appen. Positionen skickas utan namn eller andra uppgifter om vem du är. Läs om hur Trafikverket hanterar personuppgifter på <a href="https://www.trafikverket.se">trafikverket.se</a>.</p>
-  <p>Varken appen eller vår server sparar din position. Servern skickar bara frågan vidare och glömmer den sedan.</p>
-  <p>Som alla webbservrar kan vår server tillfälligt logga tekniska uppgifter som IP-adress och tidpunkt för anropet. Positionen ingår inte i de loggarna.</p>
+  <p>Appen använder telefonens GPS för att räkna ut din hastighet och för att ta reda på vilken hastighetsgräns som gäller där du är. Det sker medan bevakningen är igång – även när en annan app är framme, och då visas en notis så att du alltid ser att den är igång. Du stänger av den med ”Stopp” i notisen eller i appen.</p>
+  <p>Hastighetsgränserna slås upp i en datafil som ligger i telefonen. Din position skickas inte till oss eller till någon annan, och den sparas inte.</p>
+
+  <h2>Hastighetsdata</h2>
+  <p>Datafilen med Sveriges hastighetsgränser kommer från Trafikverket (öppen data, CC0). Appen laddar ner den från GitHub (github.com), där vi publicerar den. Appen kollar också då och då om det finns en nyare version. Vid nedladdningen ser GitHub, som alla webbtjänster, telefonens IP-adress och tidpunkten. Ingen position eller annan uppgift om dig skickas med. Läs om hur GitHub hanterar uppgifter i <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHubs integritetspolicy</a>.</p>
+
+  <h2>Inställningar</h2>
+  <p>Vilket fordon du valt och om du kör med släp sparas bara i telefonen.</p>
 
   <h2>Behörigheter</h2>
   <ul>
     <li><strong>Plats</strong> – för hastighet och hastighetsgräns.</li>
-    <li><strong>Internet</strong> – för att fråga Trafikverkets API.</li>
+    <li><strong>Förgrundstjänst och notiser</strong> – så att bevakningen fortsätter när en annan app är framme, med en synlig notis.</li>
+    <li><strong>Internet</strong> – bara för att ladda ner och uppdatera hastighetsdatan.</li>
   </ul>
 
   <h2>Barn</h2>

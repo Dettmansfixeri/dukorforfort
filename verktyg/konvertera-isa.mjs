@@ -176,15 +176,90 @@ let totalIn = 0, written = 0, noGeom = 0;
 const perLimit = {};
 let cur = null; // { key, rlid, end, pts, rec }
 
+// ---------- Binärformat för appen (hastigheter.bin) ----------
+// Alla tal little-endian. Koordinater i SWEREF 99 TM, hela meter.
+//
+//  Header (48 byte):
+//    0  "DKF1"
+//    4  u32 cellstorlek (m)          8  i32 minE        12  i32 minN
+//   16  u32 kolumner                20  u32 rader       24  u32 antal sträckor
+//   28  u32 regler: offset          32  u32 regler: längd (UTF-8 JSON)
+//   36  u32 cellindex: offset       40  u32 referenser: offset
+//   44  u32 sträckor: offset
+//  Cellindex: (kolumner*rader + 1) st u32 – start i referenslistan för cell i
+//             (cell = rad*kolumner + kolumn, rad räknas från minN).
+//  Referenser: u32 per post – offset (relativt sträckområdet) till en sträcka.
+//             En sträcka finns med i varje cell som dess utbredning + 50 m överlappar.
+//  Sträcka:  u8 hastighet, u8 flaggor (bit0-1 riktning 0/1/2, bit2 gren, bit3 har regel),
+//            [u16 regel-id om bit3], u16 antal punkter n, i32 x0, i32 y0,
+//            (n-1) × (i16 dx, i16 dy)
+//  Regler:   JSON-array; regel-id pekar på en lista avvikelser (formatet "a" ovan).
+const CELL_M = 2000;
+const MARGIN_M = 50;
+const segBufs = [];      // Buffer per sträcka
+const segBox = [];       // [minX, minY, maxX, maxY]
+const ruleIds = new Map();
+const rulesList = [];
+
+function splitBigDeltas(pts) { // pts i hela meter; inga steg större än i16
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = out[out.length - 1], [bx, by] = pts[i];
+    const steps = Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay)) / 30000);
+    for (let s = 1; s < steps; s++) {
+      out.push([Math.round(ax + ((bx - ax) * s) / steps), Math.round(ay + ((by - ay) * s) / steps)]);
+    }
+    out.push([bx, by]);
+  }
+  return out;
+}
+
+function addBinary(c, simplified) {
+  let pts = [];
+  for (const [fx, fy] of simplified) {
+    const x = Math.round(fx), y = Math.round(fy);
+    const last = pts[pts.length - 1];
+    if (!last || last[0] !== x || last[1] !== y) pts.push([x, y]);
+  }
+  if (pts.length < 2) return;
+  pts = splitBigDeltas(pts);
+  let ruleId = -1;
+  if (c.a) {
+    const k = JSON.stringify(c.a);
+    ruleId = ruleIds.get(k);
+    if (ruleId === undefined) { ruleId = rulesList.length; ruleIds.set(k, ruleId); rulesList.push(c.a); }
+  }
+  const hasRule = ruleId >= 0;
+  const buf = Buffer.alloc(2 + (hasRule ? 2 : 0) + 2 + 8 + (pts.length - 1) * 4);
+  let o = 0;
+  buf.writeUInt8(c.v, o++);
+  buf.writeUInt8((c.r & 3) | (c.g ? 4 : 0) | (hasRule ? 8 : 0), o++);
+  if (hasRule) { buf.writeUInt16LE(ruleId, o); o += 2; }
+  buf.writeUInt16LE(pts.length, o); o += 2;
+  buf.writeInt32LE(pts[0][0], o); o += 4;
+  buf.writeInt32LE(pts[0][1], o); o += 4;
+  let minX = pts[0][0], minY = pts[0][1], maxX = minX, maxY = minY;
+  for (let i = 1; i < pts.length; i++) {
+    buf.writeInt16LE(pts[i][0] - pts[i - 1][0], o); o += 2;
+    buf.writeInt16LE(pts[i][1] - pts[i - 1][1], o); o += 2;
+    minX = Math.min(minX, pts[i][0]); maxX = Math.max(maxX, pts[i][0]);
+    minY = Math.min(minY, pts[i][1]); maxY = Math.max(maxY, pts[i][1]);
+  }
+  segBufs.push(buf);
+  segBox.push([minX, minY, maxX, maxY]);
+}
+
 function flush() {
   if (!cur) return;
-  const p = encode(simplify(cur.pts, TOLERANS_M));
+  const simplified = simplify(cur.pts, TOLERANS_M);
+  const p = encode(simplified);
   if (p) {
     const rec = { v: cur.v, p };
     if (cur.r) rec.r = cur.r;
     if (cur.g) rec.g = 1;
     if (cur.a) rec.a = cur.a;
     if (!out.write(JSON.stringify(rec) + "\n")) { /* buffras */ }
+    addBinary(cur, simplified);
     written++;
     perLimit[cur.v] = (perLimit[cur.v] ?? 0) + 1;
   }
@@ -218,8 +293,74 @@ flush();
 await new Promise((res) => out.end(res));
 db.close();
 
-const gzPath = new URL("../data/hastigheter.ndjson.gz", import.meta.url);
-await pipeline(createReadStream(ndjsonPath), createGzip({ level: 9 }), createWriteStream(gzPath));
+const ndjsonGzPath = new URL("../data/hastigheter.ndjson.gz", import.meta.url);
+await pipeline(createReadStream(ndjsonPath), createGzip({ level: 9 }), createWriteStream(ndjsonGzPath));
+
+// ---------- Bygg hastigheter.bin ----------
+let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+for (const [a, b, c, d] of segBox) {
+  gMinX = Math.min(gMinX, a); gMinY = Math.min(gMinY, b);
+  gMaxX = Math.max(gMaxX, c); gMaxY = Math.max(gMaxY, d);
+}
+const minE = Math.floor((gMinX - MARGIN_M) / CELL_M) * CELL_M;
+const minN = Math.floor((gMinY - MARGIN_M) / CELL_M) * CELL_M;
+const cols = Math.ceil((gMaxX + MARGIN_M - minE) / CELL_M) + 1;
+const rowsN = Math.ceil((gMaxY + MARGIN_M - minN) / CELL_M) + 1;
+const nCells = cols * rowsN;
+
+// Offset för varje sträcka i sträckområdet
+const segOffset = new Uint32Array(segBufs.length);
+let segBytes = 0;
+for (let i = 0; i < segBufs.length; i++) { segOffset[i] = segBytes; segBytes += segBufs[i].length; }
+
+// Räkna referenser per cell, sedan fyll i
+const cellOf = (x, y) => [Math.floor((x - minE) / CELL_M), Math.floor((y - minN) / CELL_M)];
+const counts = new Uint32Array(nCells + 1);
+const forEachCell = (i, fn) => {
+  const [a, b, c, d] = segBox[i];
+  const [c0, r0] = cellOf(a - MARGIN_M, b - MARGIN_M);
+  const [c1, r1] = cellOf(c + MARGIN_M, d + MARGIN_M);
+  for (let r = r0; r <= r1; r++) for (let cc = c0; cc <= c1; cc++) fn(r * cols + cc);
+};
+for (let i = 0; i < segBufs.length; i++) forEachCell(i, (cell) => counts[cell + 1]++);
+for (let i = 1; i <= nCells; i++) counts[i] += counts[i - 1];
+const totalRefs = counts[nCells];
+const refs = new Uint32Array(totalRefs);
+const fill = counts.slice(0, nCells);
+for (let i = 0; i < segBufs.length; i++) forEachCell(i, (cell) => { refs[fill[cell]++] = segOffset[i]; });
+
+const rulesBuf = Buffer.from(JSON.stringify(rulesList), "utf8");
+const HEADER = 48;
+const rulesOff = HEADER;
+const cellOff = rulesOff + rulesBuf.length;
+const refsOff = cellOff + (nCells + 1) * 4;
+const segOff = refsOff + totalRefs * 4;
+const header = Buffer.alloc(HEADER);
+header.write("DKF1", 0, "ascii");
+header.writeUInt32LE(CELL_M, 4);
+header.writeInt32LE(minE, 8);
+header.writeInt32LE(minN, 12);
+header.writeUInt32LE(cols, 16);
+header.writeUInt32LE(rowsN, 20);
+header.writeUInt32LE(segBufs.length, 24);
+header.writeUInt32LE(rulesOff, 28);
+header.writeUInt32LE(rulesBuf.length, 32);
+header.writeUInt32LE(cellOff, 36);
+header.writeUInt32LE(refsOff, 40);
+header.writeUInt32LE(segOff, 44);
+
+const binPath = new URL("../data/hastigheter.bin", import.meta.url);
+const bin = createWriteStream(binPath);
+const write = (b) => new Promise((res) => (bin.write(b) ? res() : bin.once("drain", res)));
+await write(header);
+await write(rulesBuf);
+await write(Buffer.from(counts.buffer, counts.byteOffset, counts.byteLength));
+await write(Buffer.from(refs.buffer, refs.byteOffset, refs.byteLength));
+for (let i = 0; i < segBufs.length; i += 10000) await write(Buffer.concat(segBufs.slice(i, i + 10000)));
+await new Promise((res) => bin.end(res));
+
+const gzPath = new URL("../data/hastigheter.bin.gz", import.meta.url);
+await pipeline(createReadStream(binPath), createGzip({ level: 9 }), createWriteStream(gzPath));
 
 // ---------- version.json och sammanfattning ----------
 const now = new Date();
@@ -230,9 +371,11 @@ const gzBytes = readFileSync(gzPath);
 writeFileSync(new URL("../data/version.json", import.meta.url), JSON.stringify({
   version,
   kalla: sourceName || "ISA hastighet (Trafikverket, Lastkajen)",
-  fil: "hastigheter.ndjson.gz",
+  format: 1,
+  fil: "hastigheter.bin.gz",
   storlek: gzBytes.length,
   sha256: createHash("sha256").update(gzBytes).digest("hex"),
+  okomprimerad: statSync(binPath).size,
   strackor: written,
 }, null, 2) + "\n");
 
@@ -243,8 +386,10 @@ const rowsOut = [
   ["Sträckor efter hopslagning", written],
   ["Utan geometri/hastighet", noGeom],
   ["Avvikelser med fordonstyp/vikt", withVehicle],
-  ["Okomprimerad fil", mb(ndjsonPath)],
-  ["Komprimerad fil (.gz)", mb(gzPath)],
+  ["Unika regler", rulesList.length],
+  ["Appens fil (hastigheter.bin)", mb(binPath)],
+  ["Appens fil komprimerad (.bin.gz)", mb(gzPath)],
+  ["Läsbar fil (.ndjson.gz)", mb(ndjsonGzPath)],
   ["Tid", ((Date.now() - t0) / 1000).toFixed(0) + " s"],
 ];
 console.log("\n===== RESULTAT =====");
