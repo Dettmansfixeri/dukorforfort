@@ -1,0 +1,77 @@
+# Skapar röstprov med Googles röster och lägger upp en lyssningssida:
+#   https://dukorforfort.dettmansfixeri.se/rostprov/
+# Körs bara med knappen "Run workflow" (Actions → Röstprov).
+#
+# Secret (Settings → Secrets and variables → Actions):
+#   GOOGLE_TTS_KEY   API-nyckel från Google Cloud-projektet "dukorforfort",
+#                    begränsad till Cloud Text-to-Speech API.
+name: Röstprov
+
+on:
+  workflow_dispatch:
+    inputs:
+      roster:
+        description: "Röster (kommatecken emellan)"
+        default: "Achird,Algieba,Charon,Sadachbia,Aoede,Callirrhoe,Sulafat,Zephyr"
+      modeller:
+        description: "Modeller: chirp, gemini-flash, gemini-pro"
+        default: "chirp,gemini-flash,gemini-pro"
+      fraser:
+        description: "Fraser (| emellan)"
+        default: "Du kör för fort, IDIOT!|Det här kostar dig 2 400 kronor i böter. Plus busskort i minst två månader.|Utmärkt! Fortkörning kan leda till bättre hälsa… DÅ DU MÅSTE CYKLA!"
+      stil:
+        description: "Stilinstruktion (bara Gemini)"
+        default: "Jämnt och ganska snabbt tempo hela meningen. Torr, irriterad och lite sarkastisk. Uttala kör som i att köra bil."
+      tagningar:
+        description: "Antal versioner per klipp (1–5)"
+        default: "2"
+      tempo:
+        description: "Talhastighet för Chirp (1 = normal)"
+        default: "1.1"
+
+concurrency: rostprov
+
+jobs:
+  prov:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Skapa röstprov
+        env:
+          GOOGLE_TTS_KEY: ${{ secrets.GOOGLE_TTS_KEY }}
+          ROSTER: ${{ inputs.roster }}
+          MODELLER: ${{ inputs.modeller }}
+          FRASER: ${{ inputs.fraser }}
+          STIL: ${{ inputs.stil }}
+          TAGNINGAR: ${{ inputs.tagningar }}
+          TEMPO: ${{ inputs.tempo }}
+        run: node verktyg/rostprov.mjs
+
+      - name: Spara som nedladdning också
+        uses: actions/upload-artifact@v4
+        with:
+          name: rostprov
+          path: ut/
+
+      - name: Lägg upp på webbsidan
+        env:
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+          lftp -c "
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data true;
+            set net:max-retries 2;
+            set net:timeout 30;
+            open -u \"$FTP_USERNAME\" --env-password ns8.inleed.net;
+            mkdir -pf rostprov;
+            mirror --reverse --delete ./ut/ ./rostprov/
+          "
+          echo "Lyssna: https://dukorforfort.dettmansfixeri.se/rostprov/" >> "$GITHUB_STEP_SUMMARY"
