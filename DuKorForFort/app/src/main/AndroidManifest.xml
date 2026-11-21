@@ -11,6 +11,8 @@
     <!-- Live-uppdatering i statusraden (Android 16) -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Uppdatera appen inifrån appen (frågar alltid innan installation). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Automatisk start: bara om man slår på det i inställningarna -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
@@ -51,6 +53,15 @@
             android:name=".SpeedService"
             android:exported="false"
             android:foregroundServiceType="location" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.filer"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/filer" />
+        </provider>
         <receiver
             android:name=".AutoStartReceiver"
             android:exported="true">

@@ -75,11 +75,26 @@ fun DataGate() {
     val dataState by DataManager.state.collectAsStateWithLifecycle()
     val update by DataManager.update.collectAsStateWithLifecycle()
 
+    val appUpdate by AppUpdater.state.collectAsStateWithLifecycle()
+
     LaunchedEffect(Unit) {
         DataManager.load(ctx)
         SpeedTracker.loadSettings(ctx)
         AutoStart.apply(ctx, SpeedTracker.settings.value)
+        AppUpdater.check()
         DataManager.checkForUpdate(ctx)
+    }
+    // Kolla appversionen igen varje gång appen tas fram (den kan ha legat i bakgrunden länge).
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        var first = true
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (first) first = false else scope.launch { AppUpdater.check() }
+            }
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
     }
 
     val hasData = DataManager.data != null
@@ -92,6 +107,12 @@ fun DataGate() {
         else -> SpeedScreen()
     }
 
+    val a = appUpdate
+    if (a !is AppUpdater.State.None) {
+        AppUpdateDialog(a)
+        return
+    }
+
     val u = update
     if (u != null && hasData) {
         AlertDialog(
@@ -102,6 +123,69 @@ fun DataGate() {
             dismissButton = { TextButton(onClick = { DataManager.dismissUpdate() }) { Text("Senare") } },
         )
     }
+}
+
+/** Ny version av appen: ladda ner och installera. */
+@Composable
+fun AppUpdateDialog(s: AppUpdater.State) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val canClose = s !is AppUpdater.State.Downloading
+    AlertDialog(
+        onDismissRequest = { if (canClose) AppUpdater.dismiss() },
+        title = { Text("Ny version av appen") },
+        text = {
+            Column {
+                when (s) {
+                    is AppUpdater.State.Available -> Text(
+                        "Version ${s.remote.version} finns (du har ${BuildConfig.VERSION_NAME}). " +
+                            "Ladda ner och installera nu?" +
+                            (if (s.remote.size > 0) " (${(s.remote.size + 524288) / 1048576} MB)" else "")
+                    )
+                    is AppUpdater.State.Downloading -> {
+                        Text("Laddar ner version ${s.remote.version}… ${(s.progress * 100).toInt()} %")
+                        Spacer(Modifier.height(12.dp))
+                        LinearProgressIndicator(progress = { s.progress }, modifier = Modifier.fillMaxWidth())
+                    }
+                    is AppUpdater.State.Ready -> Text(
+                        if (AppUpdater.mayInstall(ctx)) "Klar! Tryck Installera."
+                        else "Klar! Telefonen behöver först tillåta att den här appen installerar uppdateringar. " +
+                            "Tryck Tillåt, slå på reglaget, gå tillbaka och tryck Installera."
+                    )
+                    is AppUpdater.State.Failed -> Text(s.message)
+                    AppUpdater.State.None -> {}
+                }
+            }
+        },
+        confirmButton = {
+            when (s) {
+                is AppUpdater.State.Available, is AppUpdater.State.Failed -> TextButton(onClick = {
+                    val r = if (s is AppUpdater.State.Available) s.remote else (s as AppUpdater.State.Failed).remote
+                    scope.launch { AppUpdater.download(ctx, r) }
+                }) { Text(if (s is AppUpdater.State.Failed) "Försök igen" else "Ladda ner") }
+                is AppUpdater.State.Ready -> {
+                    // Läses om när man kommer tillbaka från inställningarna.
+                    var tick by remember { mutableIntStateOf(0) }
+                    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+                    DisposableEffect(lifecycle) {
+                        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+                            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) tick++
+                        }
+                        lifecycle.addObserver(obs)
+                        onDispose { lifecycle.removeObserver(obs) }
+                    }
+                    val may = remember(tick) { AppUpdater.mayInstall(ctx) }
+                    TextButton(onClick = {
+                        if (may) AppUpdater.install(ctx, s.file) else AppUpdater.openInstallPermission(ctx)
+                    }) { Text(if (may) "Installera" else "Tillåt") }
+                }
+                else -> {}
+            }
+        },
+        dismissButton = {
+            if (canClose) TextButton(onClick = { AppUpdater.dismiss() }) { Text("Senare") }
+        },
+    )
 }
 
 @Composable

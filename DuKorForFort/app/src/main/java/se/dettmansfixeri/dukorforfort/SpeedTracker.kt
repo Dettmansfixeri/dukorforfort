@@ -20,7 +20,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 data class UiState(
     val running: Boolean = false,
@@ -120,6 +122,8 @@ object SpeedTracker {
 
     // GPS-bortfall: kommer ingen position på GPS_TIMEOUT_MS tystas varningen tills en färsk kommer.
     private const val GPS_TIMEOUT_MS = 5_000L
+    /** Så många sekunder framåt räknar vi positionen (GPS-fördröjning + tid till nästa fix). */
+    private const val LOOKAHEAD_S = 1.0
     private var lastFixAt = 0L
     private var gpsLost = false
     private var gpsJob: Job? = null
@@ -228,11 +232,12 @@ object SpeedTracker {
         lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, listener, Looper.getMainLooper())
         try { lm.registerGnssStatusCallback(gnss, Handler(Looper.getMainLooper())) } catch (e: Exception) { }
 
-        // Kolla efter ny hastighetsdata en gång per dygn medan appen är igång.
+        // Kolla efter ny hastighetsdata och ny appversion en gång per dygn medan appen är igång.
         updateJob = scope.launch {
             while (isActive) {
                 delay(DataManager.CHECK_INTERVAL_MS)
                 DataManager.checkForUpdate(ctx)
+                AppUpdater.check()
             }
         }
         lastFix = null
@@ -301,9 +306,15 @@ object SpeedTracker {
             return
         }
 
-        val (e, n) = Sweref99.fromWgs84(loc.latitude, loc.longitude)
+        val (e0, n0) = Sweref99.fromWgs84(loc.latitude, loc.longitude)
         // Kursen är bara pålitlig när man rör sig.
         val course = if (loc.hasBearing() && (speed ?: 0) >= 8) loc.bearing else null
+        // GPS-positionen är redan lite gammal när den kommer, och nästa kommer först om en sekund.
+        // Räkna därför med att bilen hunnit en bit framåt, så att skylten byts när man passerar den.
+        val ahead = if (course != null && (speed ?: 0) >= 20) loc.speed * LOOKAHEAD_S else 0.0
+        val rad = Math.toRadians((course ?: 0f).toDouble())
+        val e = e0 + sin(rad) * ahead
+        val n = n0 + cos(rad) * ahead
         val accuracy = if (loc.hasAccuracy()) loc.accuracy else null
         val road = matcher.match(data, e, n, accuracy, course)
 

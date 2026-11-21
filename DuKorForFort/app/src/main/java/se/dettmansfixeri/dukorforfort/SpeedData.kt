@@ -42,7 +42,44 @@ class SpeedData private constructor(private val b: ByteBuffer) {
         val ruleId: Int,        // -1 = inga avvikelser
         val distance: Double,   // meter
         val bearing: Double,    // linjens riktning vid närmaste punkt, grader 0–360 (0 = norr)
-    )
+        val pts: DoubleArray = DoubleArray(0),                // linjens punkter: e0, n0, e1, n1, …
+    ) {
+        val startE get() = pts[0]
+        val startN get() = pts[1]
+        val endE get() = pts[pts.size - 2]
+        val endN get() = pts[pts.size - 1]
+
+        /** Avstånd från (e, n) till linjen. */
+        fun distanceTo(e: Double, n: Double): Double {
+            var best = hypot(e - pts[0], n - pts[1])
+            var i = 2
+            while (i < pts.size) {
+                val x = pts[i - 2]; val y = pts[i - 1]
+                val dx = pts[i] - x; val dy = pts[i + 1] - y
+                val l2 = dx * dx + dy * dy
+                val t = if (l2 == 0.0) 0.0 else (((e - x) * dx + (n - y) * dy) / l2).coerceIn(0.0, 1.0)
+                best = min(best, hypot(e - x - t * dx, n - y - t * dy))
+                i += 2
+            }
+            return best
+        }
+
+        /**
+         * Hur hänger sträckan ihop med [o]?
+         * END = en ände på samma ställe (samma väg som byter gräns, eller vägar som möts i en korsning).
+         * MID = en ände ligger på den andra linjen (sidoväg som ansluter mitt på en väg).
+         */
+        fun linkTo(o: Candidate): Link {
+            fun same(e1: Double, n1: Double, e2: Double, n2: Double) = hypot(e1 - e2, n1 - n2) <= END_TOL
+            if (same(startE, startN, o.startE, o.startN) || same(startE, startN, o.endE, o.endN) ||
+                same(endE, endN, o.startE, o.startN) || same(endE, endN, o.endE, o.endN)) return Link.END
+            if (o.distanceTo(startE, startN) <= MID_TOL || o.distanceTo(endE, endN) <= MID_TOL ||
+                distanceTo(o.startE, o.startN) <= MID_TOL || distanceTo(o.endE, o.endN) <= MID_TOL) return Link.MID
+            return Link.NONE
+        }
+    }
+
+    enum class Link { END, MID, NONE }
 
     /** Alla sträckor inom [maxDist] meter från (e, n). */
     fun near(e: Double, n: Double, maxDist: Double): List<Candidate> {
@@ -65,6 +102,9 @@ class SpeedData private constructor(private val b: ByteBuffer) {
             o += 2
             var x = b.getInt(o).toDouble()
             var y = b.getInt(o + 4).toDouble()
+            val pts = DoubleArray(nPts * 2)
+            pts[0] = x
+            pts[1] = y
             o += 8
             var best = Double.MAX_VALUE
             var bearing = 0.0
@@ -84,15 +124,22 @@ class SpeedData private constructor(private val b: ByteBuffer) {
                 }
                 x = nx
                 y = ny
+                pts[k * 2] = x
+                pts[k * 2 + 1] = y
             }
             if (best <= maxDist) {
-                out += Candidate(off, kmh, flags and 3, flags and 4 != 0, rule, best, bearing)
+                out += Candidate(off, kmh, flags and 3, flags and 4 != 0, rule, best, bearing, pts)
             }
         }
         return out
     }
 
     companion object {
+        /** Ändar närmare än så räknas som samma punkt (meter). */
+        const val END_TOL = 3.0
+        /** En ände så här nära en annan linje räknas som ansluten mitt på den (meter). */
+        const val MID_TOL = 5.0
+
         fun open(file: File): SpeedData? {
             if (!file.exists()) return null
             return try {
@@ -116,19 +163,33 @@ class SpeedData private constructor(private val b: ByteBuffer) {
 }
 
 /**
- * Väljer vilken väg man kör på. Tar hänsyn till avstånd, färdriktning och enkelriktade
- * gränser, och håller sig kvar på samma väg så länge den är ett rimligt val (så att
- * gränsen inte hoppar fram och tillbaka vid korsningar och parallella vägar).
+ * Väljer vilken väg man kör på, och följer vägnätet som en navigator: appen vet vilken
+ * sträcka man är på och byter bara till sträckor man kan ha kört in på därifrån.
+ *
+ * - Fortsättning (ände mot ände, t.ex. samma väg med ny gräns): byter så fort den passar bättre.
+ * - Sidoväg som ansluter mitt på: byter när den passat bättre två GPS-punkter i rad.
+ * - Väg som inte hänger ihop (parallell väg, grannväg): byter bara om den passat mycket bättre
+ *   tre punkter i rad (GPS-hopp, glapp i datan), eller om nuvarande väg är borta.
+ *
+ * Avstånd och färdriktning avgör vilken sträcka som passar bäst; enkelriktade gränser
+ * gäller bara åt sitt håll.
  */
 class RoadMatcher {
-    private var currentId: Int? = null
+    private var current: SpeedData.Candidate? = null
+    private var held = 0                 // antal GPS-punkter på nuvarande sträcka
+    private var pendingId: Int? = null   // sträcka som håller på att bekräftas
+    private var pendingCount = 0
+    private var lastE = Double.NaN
+    private var lastN = Double.NaN
 
-    fun reset() { currentId = null }
+    fun reset() {
+        current = null; held = 0; pendingId = null; pendingCount = 0; lastE = Double.NaN; lastN = Double.NaN; misses = 0
+    }
 
     fun match(data: SpeedData, e: Double, n: Double, accuracy: Float?, course: Float?): SpeedData.Candidate? {
         val maxDist = (accuracy?.toDouble()?.times(1.5) ?: 30.0).coerceIn(25.0, 60.0)
         val cands = data.near(e, n, maxDist)
-        if (cands.isEmpty()) { currentId = null; return null }
+        if (cands.isEmpty()) { miss(); return null }
 
         fun score(c: SpeedData.Candidate): Double? {
             var s = c.distance
@@ -145,12 +206,59 @@ class RoadMatcher {
             return s
         }
 
-        val scored = cands.mapNotNull { c -> score(c)?.let { c to it } }
-        if (scored.isEmpty()) { currentId = null; return null }
-        val best = scored.minBy { it.second }
-        val current = scored.firstOrNull { it.first.id == currentId }
-        val chosen = if (current != null && current.second <= best.second + 8.0) current else best
-        currentId = chosen.first.id
-        return chosen.first
+        val scored = cands.mapNotNull { c -> score(c)?.let { c to it } }.sortedBy { it.second }
+        if (scored.isEmpty()) { miss(); return null }
+        misses = 0
+        // Samma position igen (omräkning utan ny GPS-punkt) räknas inte som en ny bekräftelse.
+        val fresh = e != lastE || n != lastN
+        lastE = e; lastN = n
+
+        val cur = current
+        val best = scored.first()
+        // Ingen väg än, eller precis börjat: ta den som passar bäst.
+        if (cur == null || held < START_FIXES) {
+            val keep = cur?.let { c -> scored.firstOrNull { it.first.id == c.id } }
+            return choose(if (keep != null && keep.second <= best.second + 3.0) keep.first else best.first, fresh)
+        }
+        val curNow = scored.firstOrNull { it.first.id == cur.id }
+        // Nuvarande sträcka är borta (för långt bort / fel håll): ta bästa anslutande, annars bästa.
+        if (curNow == null) {
+            val next = scored.firstOrNull { cur.linkTo(it.first) != SpeedData.Link.NONE } ?: best
+            return choose(next.first, fresh)
+        }
+        // Bästa utmanare: en sträcka som passar tillräckligt mycket bättre, beroende på hur den hänger ihop.
+        var needed = 0
+        val challenger = scored.firstOrNull { (c, s) ->
+            if (c.id == cur.id) return@firstOrNull false
+            val (margin, fixes) = when (cur.linkTo(c)) {
+                SpeedData.Link.END -> (if (course == null) 3.0 else 0.0) to 1
+                SpeedData.Link.MID -> 2.0 to 2
+                SpeedData.Link.NONE -> 12.0 to 3
+            }
+            needed = fixes
+            s < curNow.second - margin
+        }
+        if (challenger == null) {
+            if (fresh) { pendingId = null; pendingCount = 0 }
+            return choose(curNow.first, fresh)
+        }
+        val id = challenger.first.id
+        if (pendingId != id) { pendingId = id; pendingCount = 1 } else if (fresh) pendingCount++
+        return choose(if (pendingCount >= needed) challenger.first else curNow.first, fresh)
+    }
+
+    /** Ingen väg i närheten. Ett enstaka GPS-hopp glömmer inte vägen – först efter flera i rad. */
+    private var misses = 0
+    private fun miss() { if (++misses >= 3) reset() }
+
+    private fun choose(c: SpeedData.Candidate, fresh: Boolean): SpeedData.Candidate {
+        if (current?.id == c.id) { if (fresh) held++ } else { held = 1; pendingId = null; pendingCount = 0 }
+        current = c
+        return c
+    }
+
+    private companion object {
+        /** Så många GPS-punkter i början där vi bara tar den väg som passar bäst. */
+        const val START_FIXES = 3
     }
 }
