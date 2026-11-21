@@ -4,7 +4,9 @@
 #
 # Secret (Settings → Secrets and variables → Actions):
 #   GOOGLE_TTS_KEY   API-nyckel från Google Cloud-projektet "dukorforfort",
-#                    begränsad till Cloud Text-to-Speech API.
+#                    begränsad till Cloud Text-to-Speech API (Chirp).
+#   GOOGLE_GEMINI_KEY API-nyckel bunden till tjänstekontot "rostprov" (roll Vertex AI User),
+#                    begränsad till Agent Platform API (Gemini).
 name: Röstprov
 
 on:
@@ -45,6 +47,7 @@ jobs:
       - name: Skapa röstprov
         env:
           GOOGLE_TTS_KEY: ${{ secrets.GOOGLE_TTS_KEY }}
+          GOOGLE_GEMINI_KEY: ${{ secrets.GOOGLE_GEMINI_KEY }}
           ROSTER: ${{ inputs.roster }}
           MODELLER: ${{ inputs.modeller }}
           FRASER: ${{ inputs.fraser }}

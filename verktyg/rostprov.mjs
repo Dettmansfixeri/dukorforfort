@@ -10,9 +10,11 @@
 //   TEMPO      talhastighet, 1 = normal (bara Chirp)
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
+// GOOGLE_TTS_KEY: Chirp (Cloud Text-to-Speech). GOOGLE_GEMINI_KEY: Gemini (Agent Platform, bunden till tjänstekonto).
 const KEY = process.env.GOOGLE_TTS_KEY;
-if (!KEY) { console.error('GOOGLE_TTS_KEY saknas'); process.exit(1); }
+const GEMINI_KEY = process.env.GOOGLE_GEMINI_KEY;
 
 const lista = (s) => (s || '').split(/[,|]/).map((x) => x.trim()).filter(Boolean);
 const roster = lista(process.env.ROSTER);
@@ -34,26 +36,56 @@ fs.mkdirSync(path.join(UT, 'ljud'), { recursive: true });
 
 const vila = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Rå PCM (16 bit mono) -> MP3 med ffmpeg, eller WAV om ffmpeg saknas.
+function pcmTillLjud(pcm, rate) {
+  const r = spawnSync('ffmpeg', ['-loglevel', 'error', '-f', 's16le', '-ar', String(rate), '-ac', '1', '-i', 'pipe:0', '-b:a', '96k', '-f', 'mp3', 'pipe:1'], { input: pcm, maxBuffer: 64 << 20 });
+  if (r.status === 0 && r.stdout?.length) return { data: r.stdout, ext: 'mp3' };
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVE', 8); h.write('fmt ', 12);
+  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24);
+  h.writeUInt32LE(rate * 2, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
+  return { data: Buffer.concat([h, pcm]), ext: 'wav' };
+}
+
 async function tala(text, rost, modell) {
   const m = MODELL[modell];
-  const body = m.gemini
-    ? {
-        input: stil ? { text, prompt: stil } : { text },
-        voice: { languageCode: 'sv-SE', name: rost, modelName: m.gemini },
-        audioConfig: { audioEncoding: 'MP3' },
-      }
-    : {
-        input: { text },
-        voice: { languageCode: 'sv-SE', name: `sv-SE-Chirp3-HD-${rost}` },
-        audioConfig: { audioEncoding: 'MP3', speakingRate: tempo },
-      };
+  let url, nyckel, body;
+  if (m.gemini) {
+    // Gemini via Agent Platform (Vertex AI) med nyckel bunden till tjänstekontot "rostprov".
+    if (!GEMINI_KEY) throw new Error('GOOGLE_GEMINI_KEY saknas');
+    url = `https://aiplatform.googleapis.com/v1/publishers/google/models/${m.gemini}:generateContent`;
+    nyckel = GEMINI_KEY;
+    body = {
+      contents: [{ role: 'user', parts: [{ text: stil ? `${stil}\n\n${text}` : text }] }],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: { languageCode: 'sv-SE', voiceConfig: { prebuiltVoiceConfig: { voiceName: rost } } },
+      },
+    };
+  } else {
+    if (!KEY) throw new Error('GOOGLE_TTS_KEY saknas');
+    url = 'https://texttospeech.googleapis.com/v1/text:synthesize';
+    nyckel = KEY;
+    body = {
+      input: { text },
+      voice: { languageCode: 'sv-SE', name: `sv-SE-Chirp3-HD-${rost}` },
+      audioConfig: { audioEncoding: 'MP3', speakingRate: tempo },
+    };
+  }
   for (let forsok = 1; ; forsok++) {
-    const res = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
+    const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': KEY },
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': nyckel },
       body: JSON.stringify(body),
     });
-    if (res.ok) return Buffer.from((await res.json()).audioContent, 'base64');
+    if (res.ok) {
+      const j = await res.json();
+      if (!m.gemini) return { data: Buffer.from(j.audioContent, 'base64'), ext: 'mp3' };
+      const del = j.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+      if (!del) throw new Error('inget ljud i svaret: ' + JSON.stringify(j).slice(0, 300));
+      const rate = +(/rate=(\d+)/.exec(del.inlineData.mimeType || '')?.[1] || 24000);
+      return pcmTillLjud(Buffer.from(del.inlineData.data, 'base64'), rate);
+    }
     const fel = await res.text();
     if ((res.status === 429 || res.status >= 500) && forsok < 6) {
       await vila(5000 * forsok);
@@ -73,9 +105,11 @@ for (const [fi, fras] of fraser.entries()) {
     let celler = '';
     for (const modell of modeller) {
       for (let t = 1; t <= tagningar; t++) {
-        const fil = `ljud/f${fi + 1}-${rost}-${modell}-${t}.mp3`;
+        let fil = `ljud/f${fi + 1}-${rost}-${modell}-${t}`;
         try {
-          fs.writeFileSync(path.join(UT, fil), await tala(fras, rost, modell));
+          const ljud = await tala(fras, rost, modell);
+          fil += `.${ljud.ext}`;
+          fs.writeFileSync(path.join(UT, fil), ljud.data);
           celler += `<td><audio controls preload="none" src="${fil}"></audio></td>`;
           console.log('ok ', fil);
         } catch (e) {
