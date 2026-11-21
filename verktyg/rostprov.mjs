@@ -1,5 +1,8 @@
-// Skapar röstprov med Google Cloud Text-to-Speech och en lyssningssida (ut/index.html).
-// Körs av .github/workflows/rostprov.yml. Nyckeln kommer från miljövariabeln GOOGLE_TTS_KEY.
+// Skapar röstprov med Googles röster och lägger dem i röstbiblioteket (ut/):
+//   ut/ljud/NNN.mp3     klippen, med löpnummer som aldrig återanvänds
+//   ut/bibliotek.json   alla klipp från alla körningar (BIBLIOTEK = förra versionen, hämtas från webbsidan)
+//   ut/index.html       lyssningssidan (verktyg/rostprov-sida.html) med kryssrutor
+// Körs av .github/workflows/rostprov.yml. LOKALT=1 gör påhittade pip i stället för att fråga Google.
 //
 // Miljövariabler (från workflow-knappen):
 //   ROSTER     kommaseparerade röstnamn, t.ex. "Zephyr,Charon"
@@ -34,6 +37,28 @@ const UT = 'ut';
 fs.rmSync(UT, { recursive: true, force: true });
 fs.mkdirSync(path.join(UT, 'ljud'), { recursive: true });
 
+// Biblioteket: alla klipp från alla körningar, med löpnummer som aldrig återanvänds.
+// Workflowet hämtar det från webbsidan innan (saknas filen börjar vi från 001).
+const BIBLIOTEK = process.env.BIBLIOTEK || '';
+const SIDA = 'https://dukorforfort.dettmansfixeri.se/rostprov/';
+let bib = { nasta: 1, klipp: [] };
+if (BIBLIOTEK && fs.existsSync(BIBLIOTEK)) {
+  bib = JSON.parse(fs.readFileSync(BIBLIOTEK, 'utf8'));
+  if (!Number.isInteger(bib.nasta) || !Array.isArray(bib.klipp)) { console.error('bibliotek.json är trasig'); process.exit(1); }
+}
+const nummer = (n) => String(n).padStart(3, '0');
+// Extra skydd: ett nummer som redan har en fil på servern hoppas över (t.ex. om förra körningen
+// laddade upp klippen men inte hann spara biblioteket). Så återanvänds ett nummer aldrig.
+async function finnsPaServern(nr) {
+  if (process.env.LOKALT) return false;
+  for (const ext of ['mp3', 'wav']) {
+    const r = await fetch(`${SIDA}ljud/${nr}.${ext}`, { method: 'HEAD' }).catch(() => null);
+    if (r && r.ok) return true;
+  }
+  return false;
+}
+const korning = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
 const vila = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Rå PCM (16 bit mono) -> MP3 med ffmpeg, eller WAV om ffmpeg saknas.
@@ -49,6 +74,11 @@ function pcmTillLjud(pcm, rate) {
 
 async function tala(text, rost, modell) {
   const m = MODELL[modell];
+  if (process.env.LOKALT) {
+    const pcm = Buffer.alloc(24000);
+    for (let i = 0; i < 12000; i++) pcm.writeInt16LE(Math.round(8000 * Math.sin(i * (0.05 + roster.indexOf(rost) * 0.01))), i * 2);
+    return pcmTillLjud(pcm, 24000);
+  }
   let url, nyckel, body;
   if (m.gemini) {
     // Gemini via Agent Platform (Vertex AI) med nyckel bunden till tjänstekontot "rostprov".
@@ -95,56 +125,33 @@ async function tala(text, rost, modell) {
   }
 }
 
-const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
 let fel = 0;
-const sektioner = [];
-for (const [fi, fras] of fraser.entries()) {
-  let rader = '';
+let nya = 0;
+for (const fras of fraser) {
   for (const rost of roster) {
-    let celler = '';
     for (const modell of modeller) {
       for (let t = 1; t <= tagningar; t++) {
-        let fil = `ljud/f${fi + 1}-${rost}-${modell}-${t}`;
         try {
           const ljud = await tala(fras, rost, modell);
-          fil += `.${ljud.ext}`;
+          while (await finnsPaServern(nummer(bib.nasta))) bib.nasta++;
+          const nr = nummer(bib.nasta);
+          const fil = `ljud/${nr}.${ljud.ext}`;
           fs.writeFileSync(path.join(UT, fil), ljud.data);
-          celler += `<td><audio controls preload="none" src="${fil}"></audio></td>`;
-          console.log('ok ', fil);
+          bib.nasta++; // numret är förbrukat nu, även om klippet skulle tas bort senare
+          bib.klipp.push({ nr, fil, fras, rost, modell: MODELL[modell].namn, tagning: t,
+            stil: MODELL[modell].gemini ? stil : '', tempo: MODELL[modell].gemini ? null : tempo, skapad: korning });
+          nya++;
+          console.log('ok ', nr, rost, modell, t);
         } catch (e) {
           fel++;
-          celler += `<td class="fel" title="${esc(e.message)}">fel</td>`;
-          console.log('FEL', fil, e.message);
+          console.log('FEL', rost, modell, t, e.message);
         }
       }
     }
-    rader += `<tr><th>${esc(rost)}</th>${celler}</tr>\n`;
   }
-  const rubriker = modeller
-    .flatMap((m) => Array.from({ length: tagningar }, (_, i) => `<th>${MODELL[m].namn}${tagningar > 1 ? ` #${i + 1}` : ''}</th>`))
-    .join('');
-  sektioner.push(`<h2>${esc(fras)}</h2>\n<div class="tab"><table><tr><th>Röst</th>${rubriker}</tr>\n${rader}</table></div>`);
 }
 
-const html = `<!doctype html>
-<html lang="sv"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Röstprov</title>
-<style>
-body{background:#111;color:#eee;font-family:system-ui,sans-serif;margin:0;padding:16px;max-width:1400px}
-h1{font-size:1.4em}h2{font-size:1.05em;margin-top:2em;color:#ffcc00}
-.info{color:#aaa;font-size:.9em}
-.tab{overflow-x:auto}table{border-collapse:collapse}
-th,td{padding:4px 8px;border-bottom:1px solid #333;text-align:left;white-space:nowrap}
-audio{height:32px;width:220px}.fel{color:#f66}
-</style></head><body>
-<h1>Röstprov</h1>
-<p class="info">Skapat ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC.
-Stil (Gemini): ${stil ? esc(stil) : '–'}. Tempo (Chirp): ${tempo}.</p>
-${sektioner.join('\n')}
-</body></html>`;
-fs.writeFileSync(path.join(UT, 'index.html'), html);
-console.log(`Klart. ${fel} fel.`);
-if (fel > 0 && fel === fraser.length * roster.length * modeller.length * tagningar) process.exit(1);
+fs.writeFileSync(path.join(UT, 'bibliotek.json'), JSON.stringify(bib, null, 1));
+fs.copyFileSync(new URL('rostprov-sida.html', import.meta.url), path.join(UT, 'index.html'));
+console.log(`Klart. ${nya} nya klipp (totalt ${bib.klipp.length}), ${fel} fel.`);
+if (nya === 0) process.exit(1);

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="sv"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Röstbibliotek</title>
+<style>
+body{background:#111;color:#eee;font-family:system-ui,sans-serif;margin:0;padding:16px 16px 120px;max-width:1400px}
+h1{font-size:1.4em;margin:0 0 8px}h2{font-size:1.05em;margin:2em 0 .6em;color:#ffcc00}
+.info{color:#aaa;font-size:.9em}
+.filter{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:12px 0}
+select,button,input{font:inherit;background:#222;color:#eee;border:1px solid #444;border-radius:6px;padding:6px 10px}
+button{cursor:pointer}button:hover{border-color:#888}
+.klipp{display:flex;flex-wrap:wrap;gap:8px}
+.k{display:flex;align-items:center;gap:8px;background:#1b1b1b;border:1px solid #2c2c2c;border-radius:8px;padding:6px 10px}
+.k.vald{border-color:#ffcc00;background:#2a2510}
+.k label{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:190px}
+.k input{width:20px;height:20px;accent-color:#ffcc00}
+.nr{font-weight:700;font-variant-numeric:tabular-nums;color:#ffcc00}
+.om{color:#bbb;font-size:.85em}
+audio{height:32px;width:220px}
+.val{position:fixed;left:0;right:0;bottom:0;background:#1a1a1a;border-top:2px solid #ffcc00;padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.val input{flex:1;min-width:200px;font-family:ui-monospace,monospace}
+.tom{color:#888}
+</style></head><body>
+<h1>Röstbibliotek</h1>
+<p class="info" id="info">Laddar…</p>
+<div class="filter">
+  <label>Röst <select id="fRost"><option value="">Alla</option></select></label>
+  <label>Modell <select id="fModell"><option value="">Alla</option></select></label>
+  <label><input type="checkbox" id="fValda"> Bara valda</label>
+</div>
+<div id="lista"></div>
+<div class="val">
+  <span id="antal">0 valda</span>
+  <input id="koder" readonly placeholder="Kryssa i klipp – numren hamnar här">
+  <button id="kopiera">Kopiera</button>
+  <button id="rensa">Rensa</button>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let valda = new Set();
+try { valda = new Set(JSON.parse(localStorage.getItem('rostval') || '[]')); } catch (e) {}
+let klipp = [];
+
+function spara() {
+  try { localStorage.setItem('rostval', JSON.stringify([...valda])); } catch (e) {}
+  const lista = [...valda].sort();
+  $('koder').value = lista.join(', ');
+  $('antal').textContent = lista.length + (lista.length === 1 ? ' vald' : ' valda');
+}
+
+function rita() {
+  const r = $('fRost').value, m = $('fModell').value, bara = $('fValda').checked;
+  const fraser = new Map();
+  for (const k of klipp) {
+    if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr))) continue;
+    if (!fraser.has(k.fras)) fraser.set(k.fras, []);
+    fraser.get(k.fras).push(k);
+  }
+  let html = '';
+  for (const [fras, lista] of fraser) {
+    html += `<h2>${esc(fras)}</h2><div class="klipp">`;
+    for (const k of lista) {
+      const v = valda.has(k.nr);
+      html += `<div class="k${v ? ' vald' : ''}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
+        <label><input type="checkbox" data-nr="${esc(k.nr)}"${v ? ' checked' : ''}>
+        <span class="nr">${esc(k.nr)}</span>
+        <span>${esc(k.rost)}<br><span class="om">${esc(k.modell)} · ${esc(k.skapad)}</span></span></label>
+        <audio controls preload="none" src="${esc(k.fil)}"></audio></div>`;
+    }
+    html += '</div>';
+  }
+  $('lista').innerHTML = html || '<p class="tom">Inga klipp att visa.</p>';
+}
+
+$('lista').addEventListener('change', (e) => {
+  const nr = e.target.dataset && e.target.dataset.nr;
+  if (!nr) return;
+  if (e.target.checked) valda.add(nr); else valda.delete(nr);
+  e.target.closest('.k').classList.toggle('vald', e.target.checked);
+  spara();
+});
+// Bara ett klipp spelas åt gången.
+document.addEventListener('play', (e) => {
+  document.querySelectorAll('audio').forEach((a) => { if (a !== e.target) a.pause(); });
+}, true);
+for (const id of ['fRost', 'fModell', 'fValda']) $(id).addEventListener('change', rita);
+$('kopiera').addEventListener('click', async () => {
+  const t = $('koder').value;
+  try { await navigator.clipboard.writeText(t); } catch (e) { $('koder').select(); document.execCommand('copy'); }
+  $('kopiera').textContent = 'Kopierat!';
+  setTimeout(() => { $('kopiera').textContent = 'Kopiera'; }, 1500);
+});
+$('rensa').addEventListener('click', () => {
+  if (!valda.size || !confirm('Ta bort alla kryss?')) return;
+  valda.clear(); spara(); rita();
+});
+
+fetch('bibliotek.json', { cache: 'no-store' }).then((r) => r.json()).then((b) => {
+  klipp = b.klipp;
+  const unika = (f) => [...new Set(klipp.map(f))].sort();
+  for (const v of unika((k) => k.rost)) $('fRost').insertAdjacentHTML('beforeend', `<option>${esc(v)}</option>`);
+  for (const v of unika((k) => k.modell)) $('fModell').insertAdjacentHTML('beforeend', `<option>${esc(v)}</option>`);
+  const senast = klipp.length ? klipp[klipp.length - 1].skapad : '–';
+  $('info').textContent = `${klipp.length} klipp, nummer ${klipp[0] ? klipp[0].nr : '–'}–${klipp.length ? klipp[klipp.length - 1].nr : '–'}. Senaste körning ${senast} UTC. Kryssa i de klipp som ska användas och kopiera numren.`;
+  spara(); rita();
+}).catch(() => { $('info').textContent = 'Kunde inte läsa bibliotek.json.'; });
+</script>
+</body></html>

@@ -1,5 +1,7 @@
-# Skapar röstprov med Googles röster och lägger upp en lyssningssida:
+# Skapar röstprov med Googles röster och lägger dem i röstbiblioteket:
 #   https://dukorforfort.dettmansfixeri.se/rostprov/
+# Inga klipp raderas. Varje nytt klipp får nästa lediga löpnummer (001, 002 …),
+# som aldrig återanvänds. Klippen laddas upp först, biblioteket sist.
 # Körs bara med knappen "Run workflow" (Actions → Röstprov).
 #
 # Secret (Settings → Secrets and variables → Actions):
@@ -20,7 +22,7 @@ on:
         default: "chirp,gemini-flash,gemini-pro"
       fraser:
         description: "Fraser (| emellan)"
-        default: "Du kör för fort, IDIOT!|Det här kostar dig 2 400 kronor i böter. Plus busskort i minst två månader.|Utmärkt! Fortkörning kan leda till bättre hälsa… DÅ DU MÅSTE CYKLA!"
+        default: "Du kör för fort, IDIOT!|Det här kostar dig tvåtusenfyrahundra kronor i böter. Plus busskort i minst två månader.|Utmärkt! Fortkörning kan leda till bättre hälsa… DÅ DU MÅSTE CYKLA!"
       stil:
         description: "Stilinstruktion (bara Gemini)"
         default: "Jämnt och ganska snabbt tempo hela meningen. Torr, irriterad och lite sarkastisk. Uttala kör som i att köra bil."
@@ -47,8 +49,18 @@ jobs:
       - name: Installera ffmpeg (Gemini-ljud -> MP3)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
+      # Biblioteket med alla tidigare klipp. 404 = finns inte än (börjar på 001).
+      # Allt annat fel avbryter, så att numren aldrig börjar om av misstag.
+      - name: Hämta röstbiblioteket
+        run: |
+          code=$(curl -s -o bibliotek.json -w '%{http_code}' -H 'Cache-Control: no-cache' \
+            "https://dukorforfort.dettmansfixeri.se/rostprov/bibliotek.json?t=$(date +%s)")
+          if [ "$code" = 404 ]; then rm -f bibliotek.json; echo "Inget bibliotek än – börjar på 001";
+          elif [ "$code" != 200 ]; then echo "Kunde inte hämta biblioteket (HTTP $code)"; exit 1; fi
+
       - name: Skapa röstprov
         env:
+          BIBLIOTEK: bibliotek.json
           GOOGLE_TTS_KEY: ${{ secrets.GOOGLE_TTS_KEY }}
           GOOGLE_GEMINI_KEY: ${{ secrets.GOOGLE_GEMINI_KEY }}
           ROSTER: ${{ inputs.roster }}
@@ -77,7 +89,9 @@ jobs:
             set net:max-retries 2;
             set net:timeout 30;
             open -u \"$FTP_USERNAME\" --env-password ns8.inleed.net;
-            mkdir -pf rostprov;
-            mirror --reverse --delete ./ut/ ./rostprov/
+            mkdir -pf rostprov/ljud;
+            mirror --reverse ./ut/ljud/ ./rostprov/ljud/;
+            put ./ut/index.html -o rostprov/index.html;
+            put ./ut/bibliotek.json -o rostprov/bibliotek.json
           "
           echo "Lyssna: https://dukorforfort.dettmansfixeri.se/rostprov/" >> "$GITHUB_STEP_SUMMARY"
