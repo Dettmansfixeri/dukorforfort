@@ -55,7 +55,7 @@ jobs:
         run: |
           code=$(curl -s -o bibliotek.json -w '%{http_code}' -H 'Cache-Control: no-cache' \
             "https://dukorforfort.dettmansfixeri.se/rostprov/bibliotek.json?t=$(date +%s)")
-          if [ "$code" = 404 ]; then rm -f bibliotek.json; echo "Inget bibliotek än – börjar på 001";
+          if [ "$code" = 404 ]; then rm -f bibliotek.json; echo "Inget bibliotek än – börjar med de 96 gamla klippen (001–096)";
           elif [ "$code" != 200 ]; then echo "Kunde inte hämta biblioteket (HTTP $code)"; exit 1; fi
 
       - name: Skapa röstprov

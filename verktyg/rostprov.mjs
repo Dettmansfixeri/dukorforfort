@@ -38,14 +38,13 @@ fs.rmSync(UT, { recursive: true, force: true });
 fs.mkdirSync(path.join(UT, 'ljud'), { recursive: true });
 
 // Biblioteket: alla klipp från alla körningar, med löpnummer som aldrig återanvänds.
-// Workflowet hämtar det från webbsidan innan (saknas filen börjar vi från 001).
+// Workflowet hämtar det från webbsidan innan. Saknas det där börjar vi från de 96 första klippen
+// (2026-11-21, nr 001–096, filerna ligger redan på servern) i rostprov-gamla.json.
 const BIBLIOTEK = process.env.BIBLIOTEK || '';
 const SIDA = 'https://dukorforfort.dettmansfixeri.se/rostprov/';
-let bib = { nasta: 1, klipp: [] };
-if (BIBLIOTEK && fs.existsSync(BIBLIOTEK)) {
-  bib = JSON.parse(fs.readFileSync(BIBLIOTEK, 'utf8'));
-  if (!Number.isInteger(bib.nasta) || !Array.isArray(bib.klipp)) { console.error('bibliotek.json är trasig'); process.exit(1); }
-}
+const kalla = BIBLIOTEK && fs.existsSync(BIBLIOTEK) ? BIBLIOTEK : new URL('rostprov-gamla.json', import.meta.url);
+const bib = JSON.parse(fs.readFileSync(kalla, 'utf8'));
+if (!Number.isInteger(bib.nasta) || !Array.isArray(bib.klipp)) { console.error('bibliotek.json är trasig'); process.exit(1); }
 const nummer = (n) => String(n).padStart(3, '0');
 // Extra skydd: ett nummer som redan har en fil på servern hoppas över (t.ex. om förra körningen
 // laddade upp klippen men inte hann spara biblioteket). Så återanvänds ett nummer aldrig.
