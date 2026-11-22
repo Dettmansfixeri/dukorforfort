@@ -254,6 +254,12 @@ $('rensa').addEventListener('click', () => {
 fetch('bibliotek.json', { cache: 'no-store' }).then((r) => r.json()).then((b) => {
   klipp = b.klipp;
   for (const k of klipp) if (typeof k.sek === 'number') langd[k.nr] = k.sek;   // längd uträknad av Röstprov
+  // Rutorna längst ner ska bara visa det som väntar: klipp som redan är godkända, dolda, ersatta
+  // eller lagda för att göras om tas bort ur kryssen (de är redan omhändertagna).
+  const klara = new Set(klipp.filter((k) => k.godkand || k.bort || k.ersatt || k.gorom).map((k) => k.nr));
+  const finns = new Set(klipp.map((k) => k.nr));
+  for (const s of [valda, fel, uttal, avhugg, ejGorOm]) for (const nr of [...s]) if (klara.has(nr) || !finns.has(nr)) s.delete(nr);
+  try { localStorage.setItem('rostejgorom', JSON.stringify([...ejGorOm])); } catch (e) {}
   const unika = (f) => [...new Set(klipp.map(f))].sort();
   for (const v of unika((k) => k.rost)) $('fRost').insertAdjacentHTML('beforeend', `<option>${esc(v)}</option>`);
   for (const v of unika((k) => k.modell)) $('fModell').insertAdjacentHTML('beforeend', `<option>${esc(v)}</option>`);
