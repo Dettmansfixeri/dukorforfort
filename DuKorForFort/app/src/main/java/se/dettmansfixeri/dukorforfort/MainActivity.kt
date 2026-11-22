@@ -640,8 +640,11 @@ private fun VoicePackStatus() {
             },
             fontSize = 13.sp, color = if (st is VoicePack.State.Ready) Color(0xFF81C784) else Dim
         )
-        if (st !is VoicePack.State.Downloading) {
+        if (st !is VoicePack.State.Downloading) Row {
             TextButton(onClick = { SpeedTracker.syncVoices(ctx) }) { Text("Hämta röstpaket") }
+            TextButton(onClick = { SpeedTracker.prepareVoice(ctx).previewClip() }) { Text("Provlyssna") }
         }
+        val last by VoicePack.lastPlay.collectAsStateWithLifecycle()
+        last?.let { Text(it, fontSize = 12.sp, color = Dim) }
     }
 }

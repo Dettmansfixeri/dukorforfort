@@ -73,6 +73,8 @@ fun TestScreen(onClose: () -> Unit) {
                     val limit = if (simulate) state.limitKmh ?: signed else signed
                     val over = speed.toInt() - (limit + settings.margin)
                     Text(Warner.describe(over, Beeper.licenseOver(limit) - settings.margin, settings.sound == SoundMode.TONE), color = Color.White)
+                    val röst by VoicePack.lastPlay.collectAsStateWithLifecycle()
+                    if (settings.voicesOn) Text("Röst: " + (röst ?: "inget spelat än"), fontSize = 13.sp, color = dim)
                     if (simulate && state.reason != null) Text("Gräns $limit för dig (${state.reason})", fontSize = 13.sp, color = dim)
                 }
             }

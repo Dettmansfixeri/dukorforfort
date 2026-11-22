@@ -311,6 +311,9 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
      * Böterna sägs direkt (efter 2 s över) och så fort beloppet går upp. Sedan var 100:e meter,
      * växelvis en kommentar och böterna, alltid minst 3 s tyst emellan.
      */
+    /** Spelar ett slumpat bötesklipp direkt (knappen Provlyssna). */
+    fun previewClip() { playClip(ClipLines.fineText(5, 50), interrupt = true) }
+
     private fun clipTick() {
         val now = System.currentTimeMillis()
         val dt = if (lastTick == 0L) 0.0 else (now - lastTick) / 1000.0
@@ -351,21 +354,23 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
 
     /** Spelar ett slumpat klipp för [text]. Falskt om frasen inte finns inspelad. */
     private fun playClip(text: String, interrupt: Boolean = false): Boolean {
-        val f: File = VoicePack.clips(text).randomOrNull() ?: return false
+        val f: File = VoicePack.clips(text).randomOrNull() ?: run { VoicePack.lastPlay.value = "Inget klipp för: $text"; return false }
         if (interrupt) stopClip() else if (player != null) return false
         return try {
             val mp = MediaPlayer()
             mp.setAudioAttributes(attrs)
-            mp.setDataSource(f.absolutePath)
+            java.io.FileInputStream(f).use { mp.setDataSource(it.fd) }
             mp.setOnCompletionListener { stopClip(); finished() }
-            mp.setOnErrorListener { _, _, _ -> stopClip(); finished(); true }
+            mp.setOnErrorListener { _, w, x -> VoicePack.lastPlay.value = "Uppspelningsfel $w/$x: ${f.name}"; stopClip(); finished(); true }
             mp.prepare()
             speaking = true
             audio.requestAudioFocus(focus)
             player = mp
             mp.start()
+            VoicePack.lastPlay.value = "Spelar ${f.name}: $text"
             true
         } catch (e: Exception) {
+            VoicePack.lastPlay.value = "Fel: ${e.javaClass.simpleName} ${e.message} (${f.name})"
             stopClip()
             false
         }

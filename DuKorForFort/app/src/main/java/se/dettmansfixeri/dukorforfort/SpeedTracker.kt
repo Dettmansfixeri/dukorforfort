@@ -244,6 +244,7 @@ object SpeedTracker {
     private fun warner(ctx: Context): Warner {
         if (heckler == null) heckler = Heckler(ctx.applicationContext, _settings.value.voiceEngine, _settings.value.voiceName)
         heckler?.useClips = _settings.value.voicesOn
+        if (_settings.value.voicesOn && VoicePack.state.value !is VoicePack.State.Ready) VoicePack.load(ctx.applicationContext)
         heckler?.onSpeaking = { warner?.duck(it) }
         return warner ?: Warner(ctx.applicationContext).also { warner = it }
     }

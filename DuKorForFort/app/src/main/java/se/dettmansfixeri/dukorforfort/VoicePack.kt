@@ -29,6 +29,9 @@ object VoicePack {
     private val _state = MutableStateFlow<State>(State.None)
     val state: StateFlow<State> = _state
 
+    /** Vad rösten senast spelade eller försökte spela (visas i testläget). */
+    val lastPlay = MutableStateFlow<String?>(null)
+
     /** Fras → klippfiler (flera röster). */
     @Volatile private var byText: Map<String, List<File>> = emptyMap()
 
