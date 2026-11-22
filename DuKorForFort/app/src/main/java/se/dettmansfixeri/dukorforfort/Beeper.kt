@@ -35,6 +35,7 @@ class Beeper {
 
     companion object {
         private const val RATE = 22050
+        private const val DUCK = 0.25f
         private val SIREN = Pattern(0, 0.0, 0, "siren utan paus")
 
         /** Lägsta tonen (1 km/h över). Tonen stiger ett halvtonsteg för varje km/h, upp till [TOP_OVER]. */
@@ -127,6 +128,7 @@ class Beeper {
                 .build()
             t.write(pcm, 0, pcm.size)
             t.setLoopPoints(0, pcm.size, -1)
+            t.setVolume(if (ducked) DUCK else 1f)
             t.play()
             track = t
             playing = p
@@ -134,6 +136,13 @@ class Beeper {
             stop()
         }
     }
+
+    /** Sänker volymen (t.ex. medan rösten pratar). */
+    fun duck(on: Boolean) {
+        ducked = on
+        try { track?.setVolume(if (on) DUCK else 1f) } catch (e: Exception) { }
+    }
+    private var ducked = false
 
     fun stop() {
         try { track?.stop() } catch (e: Exception) { }

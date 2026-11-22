@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.media.MediaPlayer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -91,6 +93,10 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
             .maxWithOrNull(compareBy<Voice>({ it.quality }, { if (it.locale.country == "SE") 1 else 0 }))
 
         private const val FIRST_DELAY = 5000L
+        /** Gemini-röster: första böterna efter så här länge över, minst så här tyst emellan, och var 100:e meter. */
+        private const val CLIP_FIRST_DELAY = 2000L
+        private const val CLIP_GAP = 3000L
+        private const val CLIP_EVERY_M = 100.0
         private const val GAP = 5000L
 
         private val MEAN = listOf(
@@ -120,7 +126,7 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
                     "Där du hade stannat i $l kör du nu på i $it kilometer i timmen."
                 }
                 1 -> SpeedFacts.secondsSavedPerMil(v, l).takeIf { it >= 1 }?.let {
-                    if (mean) "Du sparar $it sekunder per mil. Var det värt det?"
+                    if (mean) "Du sparar $it sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?"
                     else "Du sparar bara $it sekunder per mil."
                 }
                 2 -> SpeedFacts.extraStopMeters(v, l).takeIf { it >= 1 }?.let {
@@ -150,6 +156,7 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
             if (mode == HeckleMode.MEAN) "Tack. Var det så svårt?" else "Tack, nu kör du lagligt igen."
     }
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val audio = ctx.getSystemService(AudioManager::class.java)
     private val attrs = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
@@ -163,6 +170,17 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
     val ready: StateFlow<Boolean?> = _ready
 
     @Volatile private var speaking = false
+        set(v) { if (field != v) { field = v; scope.launch { onSpeaking?.invoke(v) } } }
+
+    /** Anropas när rösten börjar/slutar prata (pipet sänks under tiden). */
+    var onSpeaking: ((Boolean) -> Unit)? = null
+
+    /**
+     * Testfunktionen Gemini-röster: inspelade klipp i stället för telefonens talsyntes.
+     * Då säger appen bara det som finns inspelat – talsyntesen används inte alls.
+     */
+    @Volatile var useClips = false
+    private var player: MediaPlayer? = null
     @Volatile private var lastDone = 0L
     @Volatile private var restoreVoice = false
     private var voiceName: String? = initialVoice
@@ -233,8 +251,6 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
     private var overSince = 0L
     private var count = 0
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
     init {
         scope.launch {
             while (isActive) { tick(); delay(500) }
@@ -250,7 +266,10 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
             this.tooFast = true
         } else if (this.tooFast) {
             this.tooFast = false
-            if (count > 0 && mode != HeckleMode.OFF) say(closing(mode), interrupt = true)
+            if (count > 0 && mode != HeckleMode.OFF) {
+                if (useClips) { if (mode == HeckleMode.MEAN) playClip(ClipLines.THANKS, interrupt = true) }
+                else say(closing(mode), interrupt = true)
+            }
             count = 0
         }
     }
@@ -260,10 +279,12 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
         tooFast = false
         count = 0
         tts.stop()
+        stopClip()
         finished()
     }
 
     private fun tick() {
+        if (useClips) { clipTick(); return }
         if (!tooFast || mode == HeckleMode.OFF || _ready.value != true || speaking) return
         val now = System.currentTimeMillis()
         if (now - overSince < FIRST_DELAY) return
@@ -279,7 +300,84 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
         tts.speak(text, if (interrupt) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, "dkff-${System.nanoTime()}")
     }
 
+    // ---------- Gemini-röster (klipp) ----------
+
+    private var meters = 0.0           // körd sträcka sedan förra repliken
+    private var lastBand = -1          // senaste bötesbelopp som sagts
+    private var lastTick = 0L
+    private val recent = ArrayDeque<String>()
+
+    /**
+     * Böterna sägs direkt (efter 2 s över) och så fort beloppet går upp. Sedan var 100:e meter,
+     * växelvis en kommentar och böterna, alltid minst 3 s tyst emellan.
+     */
+    private fun clipTick() {
+        val now = System.currentTimeMillis()
+        val dt = if (lastTick == 0L) 0.0 else (now - lastTick) / 1000.0
+        lastTick = now
+        if (!tooFast || mode == HeckleMode.OFF) { meters = 0.0; lastBand = -1; return }
+        meters += speed / 3.6 * dt
+        if (speaking || now - overSince < CLIP_FIRST_DELAY || now - lastDone < CLIP_GAP) return
+        val over = (speed - limit).coerceAtLeast(1)
+        val fine = ClipLines.fine(over, limit) + (if (ClipLines.license(over, limit)) 1 else 0)
+        val wantFine = count == 0 || fine > lastBand
+        if (!wantFine && meters < CLIP_EVERY_M) return
+        val text = if (wantFine || count % 2 == 0) ClipLines.fineText(over, limit) else comment(over)
+        if (text == null || !playClip(text)) {
+            // Kommentaren finns inte inspelad: säg böterna i stället.
+            if (!playClip(ClipLines.fineText(over, limit))) return
+        }
+        if (wantFine || text == ClipLines.fineText(over, limit)) lastBand = fine
+        meters = 0.0
+        count++
+    }
+
+    /** En slumpad kommentar som finns inspelad (inte samma som nyss). Snällt läge: bara skylten. */
+    private fun comment(over: Int): String? {
+        val all = buildList {
+            add(ClipLines.signText(limit))
+            if (mode == HeckleMode.MEAN) {
+                addAll(ClipLines.facts(over, limit))
+                addAll(ClipLines.INSULTS)
+                if (ClipLines.license(over, limit)) add(ClipLines.CYCLE)
+            }
+        }.filter { VoicePack.has(it) }
+        val fresh = all.filter { it !in recent }.ifEmpty { all }
+        val pick = fresh.randomOrNull() ?: return null
+        recent.addLast(pick)
+        while (recent.size > 4) recent.removeFirst()
+        return pick
+    }
+
+    /** Spelar ett slumpat klipp för [text]. Falskt om frasen inte finns inspelad. */
+    private fun playClip(text: String, interrupt: Boolean = false): Boolean {
+        val f: File = VoicePack.clips(text).randomOrNull() ?: return false
+        if (interrupt) stopClip() else if (player != null) return false
+        return try {
+            val mp = MediaPlayer()
+            mp.setAudioAttributes(attrs)
+            mp.setDataSource(f.absolutePath)
+            mp.setOnCompletionListener { stopClip(); finished() }
+            mp.setOnErrorListener { _, _, _ -> stopClip(); finished(); true }
+            mp.prepare()
+            speaking = true
+            audio.requestAudioFocus(focus)
+            player = mp
+            mp.start()
+            true
+        } catch (e: Exception) {
+            stopClip()
+            false
+        }
+    }
+
+    private fun stopClip() {
+        player?.let { try { it.stop() } catch (e: Exception) { }; it.release() }
+        player = null
+    }
+
     fun release() {
+        stopClip()
         scope.cancel()
         tts.stop()
         tts.shutdown()

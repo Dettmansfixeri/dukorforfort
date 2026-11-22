@@ -85,11 +85,13 @@ data class Settings(
     val testAhead: Boolean = false,
     val testLearnBrake: Boolean = false,
     val testShowGuess: Boolean = false,
+    val testVoices: Boolean = false,
 ) {
     val aheadOn get() = tests && testAhead
     val learnBrakeOn get() = aheadOn && testLearnBrake
     val showGuessOn get() = tests && testShowGuess
-    val anyTestOn get() = aheadOn || showGuessOn
+    val voicesOn get() = tests && testVoices
+    val anyTestOn get() = aheadOn || showGuessOn || voicesOn
 }
 
 /** Teknisk info för testsidan. */
@@ -207,6 +209,7 @@ object SpeedTracker {
             testAhead = p.getBoolean("test_lagre_grans", false),
             testLearnBrake = p.getBoolean("test_inbromsning", false),
             testShowGuess = p.getBoolean("test_visa", false),
+            testVoices = p.getBoolean("test_roster", false),
         )
         brake.load(p)
     }
@@ -219,15 +222,20 @@ object SpeedTracker {
             .putString("auto", s.auto.name).putString("bil_adress", s.carAddress).putString("bil_namn", s.carName)
             .putString("ljud", s.sound.name).putBoolean("forvarna_gas", s.gasWarn).putBoolean("test", s.tests)
             .putBoolean("test_lagre_grans", s.testAhead).putBoolean("test_inbromsning", s.testLearnBrake)
-            .putBoolean("test_visa", s.testShowGuess)
+            .putBoolean("test_visa", s.testShowGuess).putBoolean("test_roster", s.testVoices)
             .apply()
         val old = _settings.value
         _settings.value = s
         // Ny talmotor kräver en ny röst-instans; ny röst räcker att byta.
         heckler?.let { h ->
-            if (s.voiceEngine != h.engine) { h.release(); heckler = Heckler(appContext(ctx), s.voiceEngine, s.voiceName) }
+            if (s.voiceEngine != h.engine) {
+                h.release()
+                heckler = Heckler(appContext(ctx), s.voiceEngine, s.voiceName).also { n -> n.onSpeaking = { warner?.duck(it) } }
+            }
             else if (s.voiceName != old.voiceName) h.setVoiceName(s.voiceName)
         }
+        heckler?.useClips = s.voicesOn
+        if (s.voicesOn) syncVoices(ctx)
         recompute() // räkna om direkt
     }
 
@@ -235,7 +243,15 @@ object SpeedTracker {
 
     private fun warner(ctx: Context): Warner {
         if (heckler == null) heckler = Heckler(ctx.applicationContext, _settings.value.voiceEngine, _settings.value.voiceName)
+        heckler?.useClips = _settings.value.voicesOn
+        heckler?.onSpeaking = { warner?.duck(it) }
         return warner ?: Warner(ctx.applicationContext).also { warner = it }
+    }
+
+    /** Gemini-röster (test): läs in röstpaketet och hämta nytt om det finns. */
+    fun syncVoices(ctx: Context) {
+        val app = ctx.applicationContext
+        scope.launch { VoicePack.sync(app) }
     }
 
     /** Skapar rösten i förväg (testsidan). */
@@ -258,6 +274,7 @@ object SpeedTracker {
         DataManager.load(ctx)
         accel.reset()
         brake.reset()
+        if (_settings.value.voicesOn) syncVoices(ctx)
         warner(ctx)
         val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         locationManager = lm

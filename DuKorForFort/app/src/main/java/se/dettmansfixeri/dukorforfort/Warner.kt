@@ -105,6 +105,9 @@ class Warner(ctx: Context) {
         apply(latestOver)
     }
 
+    /** Pip och tick-tick tystare medan rösten pratar. */
+    fun duck(on: Boolean) { beeper.duck(on); clicker.duck(on) }
+
     /** Förvarning om lägre gräns: tick-tick var [periodMs] (null = tyst). Hörs bara när ingen varning pågår. */
     fun clicks(periodMs: Int?) {
         val p = if (latestOver > 0 || !settings.beep) null else periodMs

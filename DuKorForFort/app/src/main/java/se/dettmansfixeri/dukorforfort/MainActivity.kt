@@ -322,6 +322,10 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                         }
                         SwitchRow("Visa vad appen tror (TEST)",
                             "T.ex. \"Landar på 73 km/h\" eller \"50 om 230 m – släpp om 80 m\"", s.testShowGuess) { s = s.copy(testShowGuess = it) }
+                        SwitchRow("Gemini-röster (TEST)",
+                            "Inspelade röster i stället för telefonens talsyntes. Säger böterna och kommentarer som är godkända.",
+                            s.testVoices) { s = s.copy(testVoices = it) }
+                        if (s.testVoices) VoicePackStatus()
                     }
                 }
 
@@ -618,4 +622,26 @@ private fun MarginWarning(margin: Int) {
             .background(Color(0xFFFFCC00), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
             .padding(horizontal = 12.dp, vertical = 6.dp)
     )
+}
+
+/** Röstpaketets läge i testmenyn, med knapp för att hämta det. */
+@Composable
+private fun VoicePackStatus() {
+    val ctx = LocalContext.current
+    val st by VoicePack.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { VoicePack.load(ctx); SpeedTracker.syncVoices(ctx) }
+    Column(Modifier.padding(start = 16.dp, bottom = 4.dp)) {
+        Text(
+            when (val v = st) {
+                is VoicePack.State.Ready -> "✓ Röstpaket: ${v.clips} klipp"
+                is VoicePack.State.Downloading -> "Laddar ner röstpaket… ${(v.progress * 100).toInt()} %"
+                is VoicePack.State.Failed -> v.message
+                VoicePack.State.None -> "Röstpaketet är inte nedladdat än"
+            },
+            fontSize = 13.sp, color = if (st is VoicePack.State.Ready) Color(0xFF81C784) else Dim
+        )
+        if (st !is VoicePack.State.Downloading) {
+            TextButton(onClick = { SpeedTracker.syncVoices(ctx) }) { Text("Hämta röstpaket") }
+        }
+    }
 }
