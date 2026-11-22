@@ -23,7 +23,7 @@ on:
         default: "gemini-flash,gemini-pro"
       fraser:
         description: "Fraser (| emellan)"
-        default: "Du kör för fort, IDIOT!|Det här kostar dig tvåtusenfyrahundra kronor i böter. Plus busskort i minst två månader.|Utmärkt! Fortkörning kan leda till bättre hälsa… DÅ DU MÅSTE CYKLA!"
+        default: "Du kör för fort, IDIOT!|Det här kostar dig två tusen fyrahundra kronor i böter. Plus busskort i minst två månader.|Utmärkt! Fortkörning kan leda till bättre hälsa… DÅ DU MÅSTE CYKLA!"
       stil:
         description: "Stilinstruktion (bara Gemini)"
         default: "Jämnt och ganska snabbt tempo hela meningen. Torr, irriterad och lite sarkastisk. Uttala kör som i att köra bil."

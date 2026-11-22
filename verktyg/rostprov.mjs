@@ -85,7 +85,11 @@ async function tala(text, rost, modell) {
     url = `https://aiplatform.googleapis.com/v1/publishers/google/models/${m.gemini}:generateContent`;
     nyckel = GEMINI_KEY;
     body = {
-      contents: [{ role: 'user', parts: [{ text: stil ? `${stil}\n\n${text}` : text }] }],
+      // Stilen skrivs som en instruktion på engelska och texten inom citattecken, annars läser
+      // rösten ibland upp stilen ("Det här kostar dig TORR irriterad …").
+      contents: [{ role: 'user', parts: [{ text: stil
+        ? `Read the following Swedish text aloud. Speaking style (do NOT read this part aloud): ${stil}\nSay only this, exactly as written:\n"${text}"`
+        : text }] }],
       generationConfig: {
         responseModalities: ['AUDIO'],
         speechConfig: { languageCode: 'sv-SE', voiceConfig: { prebuiltVoiceConfig: { voiceName: rost } } },

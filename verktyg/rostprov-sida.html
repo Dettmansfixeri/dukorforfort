@@ -33,7 +33,7 @@ audio{height:32px;width:220px}
   <label>Röst <select id="fRost"><option value="">Alla</option></select></label>
   <label>Modell <select id="fModell"><option value="">Alla</option></select></label>
   <label><input type="checkbox" id="fValda"> Bara valda</label>
-  <label><input type="checkbox" id="fDoljFel"> Dölj de som läser upp stilen</label>
+  <label><input type="checkbox" id="fDoljFel"> Dölj de med fel</label>
 </div>
 <div id="lista"></div>
 <div class="val">
@@ -44,8 +44,8 @@ audio{height:32px;width:220px}
     <button id="rensa">Rensa</button>
   </div>
   <div class="rad felrad">
-    <span id="antalFel">0 läser stilen</span>
-    <input id="felkoder" readonly placeholder="Klipp där rösten läser upp &quot;torr, irriterad …&quot;">
+    <span id="antalFel">0 med fel</span>
+    <input id="felkoder" readonly placeholder="Klipp som låter fel (läser upp stilen, säger fel tal …)">
     <button id="kopieraFel">Kopiera</button>
   </div>
 </div>
@@ -54,7 +54,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let valda = new Set();
 try { valda = new Set(JSON.parse(localStorage.getItem('rostval') || '[]')); } catch (e) {}
-let fel = new Set();   // klipp där rösten läser upp stilinstruktionen
+let fel = new Set();   // klipp som låter fel (läser upp stilen, säger fel tal …)
 try { fel = new Set(JSON.parse(localStorage.getItem('rostfel') || '[]')); } catch (e) {}
 let klipp = [];
 
@@ -66,7 +66,7 @@ function spara() {
   try { localStorage.setItem('rostfel', JSON.stringify([...fel])); } catch (e) {}
   const fl = [...fel].sort();
   $('felkoder').value = fl.join(', ');
-  $('antalFel').textContent = fl.length + ' läser stilen';
+  $('antalFel').textContent = fl.length + ' med fel';
 }
 
 function rita() {
@@ -87,7 +87,7 @@ function rita() {
         <span class="nr">${esc(k.nr)}</span>
         <span>${esc(k.rost)}<br><span class="om">${esc(k.modell)} · ${esc(k.skapad)}</span></span></label>
         <audio controls preload="none" src="${esc(k.fil)}"></audio>
-        <label class="flagga" title="Rösten läser upp stilinstruktionen"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>läser stilen</label></div>`;
+        <label class="flagga" title="Något är fel: läser upp stilen, säger fel tal …"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>fel</label></div>`;
     }
     html += '</div>';
   }
