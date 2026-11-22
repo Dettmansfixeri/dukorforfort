@@ -29,7 +29,7 @@ on:
         default: "Jämnt och ganska snabbt tempo hela meningen. Torr, irriterad och lite sarkastisk. Uttala kör som i att köra bil."
       tagningar:
         description: "Antal versioner per klipp (1–5)"
-        default: "2"
+        default: "1"
       tempo:
         description: "Talhastighet för Chirp (1 = normal)"
         default: "1.1"
