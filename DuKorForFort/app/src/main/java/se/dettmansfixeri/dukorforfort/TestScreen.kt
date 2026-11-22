@@ -72,7 +72,7 @@ fun TestScreen(onClose: () -> Unit) {
                     Text("${speed.toInt()} km/h", fontSize = 40.sp, fontWeight = FontWeight.Black, color = Color.White)
                     val limit = if (simulate) state.limitKmh ?: signed else signed
                     val over = speed.toInt() - (limit + settings.margin)
-                    Text(Warner.describe(over), color = Color.White)
+                    Text(Warner.describe(over, Beeper.licenseOver(limit) - settings.margin, settings.sound == SoundMode.TONE), color = Color.White)
                     if (simulate && state.reason != null) Text("Gräns $limit för dig (${state.reason})", fontSize = 13.sp, color = dim)
                 }
             }

@@ -270,7 +270,11 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                     steps = SpeedTracker.MAX_MARGIN - SpeedTracker.MIN_MARGIN - 1,
                 )
                 SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
-                SwitchRow("Pip", null, s.beep) { s = s.copy(beep = it) }
+                SwitchRow("Ljud", null, s.beep) { s = s.copy(beep = it) }
+                if (s.beep) SoundMode.entries.forEach { m -> RadioRow(m.label, s.sound == m) { s = s.copy(sound = m) } }
+                SwitchRow("Förvarna när jag gasar på", "Varnar redan när du är på väg över gränsen, innan du är där", s.gasWarn) {
+                    s = s.copy(gasWarn = it)
+                }
                 Text("Röst", Modifier.padding(top = 6.dp))
                 Text("Pratar om du ligger över gränsen mer än 5 sekunder", fontSize = 13.sp, color = Dim)
                 Row {
@@ -303,6 +307,23 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                     AutoMode.OFF -> {}
                 }
                 if (s.auto != AutoMode.OFF) AutoPermissions(s.auto, permTick) { permTick++ }
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                SwitchRow("Testfunktioner", "Saker som provas. De kan ha fel.", s.tests) { s = s.copy(tests = it) }
+                if (s.tests) {
+                    Column(Modifier.padding(start = 16.dp)) {
+                        SwitchRow("Förvarna om lägre gräns (TEST)",
+                            "Tick-tick när du behöver släppa gasen inför en lägre gräns", s.testAhead) { s = s.copy(testAhead = it) }
+                        if (s.testAhead) {
+                            Column(Modifier.padding(start = 16.dp)) {
+                                SwitchRow("Lär dig bilens inbromsning",
+                                    "Mäter hur fort bilen tappar fart när du släpper gasen", s.testLearnBrake) { s = s.copy(testLearnBrake = it) }
+                            }
+                        }
+                        SwitchRow("Visa vad appen tror (TEST)",
+                            "T.ex. \"Landar på 73 km/h\" eller \"50 om 230 m – släpp om 80 m\"", s.testShowGuess) { s = s.copy(testShowGuess = it) }
+                    }
+                }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Text("Version ${BuildConfig.VERSION_NAME}", fontSize = 12.sp, color = Dim)
@@ -445,6 +466,10 @@ fun SpeedBlock(state: UiState, fontSize: TextUnit) {
             fontWeight = FontWeight.Black, color = Color.White
         )
         Text("km/h", fontSize = 24.sp, color = Color.White.copy(alpha = 0.7f))
+        state.guess?.let {
+            Spacer(Modifier.height(6.dp))
+            Text(it, fontSize = 15.sp, color = Color(0xFF80DEEA), textAlign = TextAlign.Center)
+        }
         if (state.tooFast) {
             Spacer(Modifier.height(12.dp))
             Text(
@@ -501,6 +526,10 @@ fun SpeedScreen() {
     fun StatusBlock() {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             MarginWarning(settings.margin)
+            if (settings.anyTestOn) Text(
+                "TEST på", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF80DEEA),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
             Text(
                 if (!hasPermission) "Appen behöver platsbehörighet" else state.status,
                 fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f), textAlign = TextAlign.Center

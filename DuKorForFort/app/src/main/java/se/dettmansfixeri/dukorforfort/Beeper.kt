@@ -17,12 +17,21 @@ import kotlin.math.sin
  *   8–10           → fyra pip i sekunden
  *   11–15          → tickande larm
  *   16–30          → snabbare tickande larm
- *   31+            → siren utan paus (körkortsgränsen)
+ *   31+            → siren utan paus (körkortsgränsen; 21+ på vägar med gräns 30 eller lägre)
+ *
+ * Tonläget: i stället för pip en jämn ton utan paus, med samma tonhöjd per km/h.
+ * Förvarningen (lägre gräns längre fram) spelas som ett dubbelklick, "tick-tick".
  */
 class Beeper {
 
-    /** Ett pipmönster: [count] pip per sekund, [hz] tonhöjd, [ms] längd på varje pip. 0 pip = siren. */
-    data class Pattern(val count: Int, val hz: Double, val ms: Int, val text: String)
+    /**
+     * Ett ljudmönster som upprepas var [periodMs]: [count] pip, [hz] tonhöjd, [ms] längd på varje pip.
+     * 0 pip = siren. [tone] = jämn ton utan paus. [spacingMs] > 0 = pipen tätt efter varandra i början.
+     */
+    data class Pattern(
+        val count: Int, val hz: Double, val ms: Int, val text: String,
+        val tone: Boolean = false, val periodMs: Int = 1000, val spacingMs: Int = 0,
+    )
 
     companion object {
         private const val RATE = 22050
@@ -35,20 +44,31 @@ class Beeper {
         /** Tonhöjd för [over] km/h över: ett halvtonsteg högre för varje km/h (660 Hz → 2640 Hz vid 25+). */
         fun hz(over: Int): Double = BASE_HZ * Math.pow(2.0, (over.coerceIn(1, TOP_OVER + 1) - 1) / 12.0)
 
-        fun pattern(over: Int): Pattern? = when {
+        /** Körkortsgränsen: 31 km/h över, eller 21 över på väg med gräns 30 eller lägre. */
+        fun licenseOver(limit: Int?): Int = if (limit != null && limit <= 30) 21 else 31
+
+        /**
+         * Mönstret för [over] km/h över (inklusive marginal). [sirenAt] = när sirenen tar över,
+         * räknat på samma sätt. [tone] = tonläget.
+         */
+        fun pattern(over: Int, sirenAt: Int = 31, tone: Boolean = false): Pattern? = when {
             over <= 0 -> null
+            over >= sirenAt -> SIREN
+            tone -> Pattern(1, Math.round(hz(over)).toDouble(), 0, "jämn ton", tone = true)
             over <= 2 -> Pattern(1, hz(over), 140, "ett pip i sekunden")
             over <= 4 -> Pattern(2, hz(over), 120, "två pip i sekunden")
             over <= 7 -> Pattern(3, hz(over), 100, "tre pip i sekunden")
             over <= 10 -> Pattern(4, hz(over), 90, "fyra pip i sekunden")
             over <= 15 -> Pattern(8, hz(over), 35, "tickande larm")
-            over <= 30 -> Pattern(12, hz(over), 28, "snabbare tickande larm")
-            else -> SIREN
+            else -> Pattern(12, hz(over), 28, "snabbare tickande larm")
         }
+
+        /** Förvarningens dubbelklick, upprepat var [periodMs]. */
+        fun click(periodMs: Int): Pattern = Pattern(2, 2000.0, 14, "tick-tick", periodMs = periodMs, spacingMs = 130)
 
         /** En sekund ljud för mönstret, 16 bit mono. */
         fun render(p: Pattern): ShortArray {
-            val out = ShortArray(RATE)
+            val out = ShortArray(RATE * p.periodMs / 1000)
             val amp = 0.8 * Short.MAX_VALUE
             if (p.count == 0) {
                 // Siren: tonen glider 700 → 1500 → 700 Hz under en sekund.
@@ -61,10 +81,15 @@ class Beeper {
                 }
                 return out
             }
+            if (p.tone) {
+                // Heltal Hz på en sekund = hela svängningar, så slingan går runt utan klick.
+                for (i in out.indices) out[i] = (0.6 * amp * sin(2 * PI * p.hz * i / RATE)).toInt().toShort()
+                return out
+            }
             val len = RATE * p.ms / 1000
             val fade = min(len / 4, RATE * 4 / 1000)   // mjuk början och slut, inget klick
             for (b in 0 until p.count) {
-                val start = RATE * b / p.count
+                val start = if (p.spacingMs > 0) RATE * b * p.spacingMs / 1000 else out.size * b / p.count
                 for (k in 0 until len) {
                     val env = when {
                         k < fade -> k.toDouble() / fade

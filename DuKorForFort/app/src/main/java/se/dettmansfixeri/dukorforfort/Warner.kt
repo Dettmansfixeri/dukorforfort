@@ -48,11 +48,13 @@ class Warner(ctx: Context) {
         }.coerceAtLeast(level.coerceAtMost(5) * (PULSE_ON + PULSE_OFF) + 150L)
 
         /** Beskrivning för testsidan. */
-        fun describe(over: Int): String {
+        fun describe(over: Int, sirenAt: Int = 31, tone: Boolean = false): String {
             if (over <= 0) return "Ingen varning"
             val vib = if (over >= CONTINUOUS) "surrar hela tiden"
             else "$over ${if (over == 1) "puls" else "pulser"} var ${seconds(intervalMs(over))} s"
-            return "$over km/h över → pip: ${Beeper.pattern(over)?.text}, vibration: $vib"
+            val p = Beeper.pattern(over, sirenAt, tone)
+            val hz = if (p != null && p.count > 0) " (${p.hz.toInt()} Hz)" else ""
+            return "$over km/h över → ljud: ${p?.text}$hz, vibration: $vib"
         }
 
         private fun seconds(ms: Long): String =
@@ -73,9 +75,17 @@ class Warner(ctx: Context) {
     private var settings = Settings()
     private var overSince = 0L      // när man först kom över gränsen (0 = inte över)
     private var latestOver = 0
+    private var sirenAt = 31
+    private val clicker = Beeper()  // förvarningens tick-tick, eget ljud bredvid varningen
+    private var clickPeriod: Int? = null
 
-    fun update(over: Int, s: Settings) {
+    /**
+     * [over] = km/h över gränsen + marginalen. [limit] = gränsen (för var sirenen börjar).
+     * [early] = varningen kommer från uträknad fart (man gasar på) – då väntar den inte in GPS-skakningar.
+     */
+    fun update(over: Int, s: Settings, limit: Int? = null, early: Boolean = false) {
         settings = s
+        sirenAt = Beeper.licenseOver(limit) - s.margin
         latestOver = over.coerceAtLeast(0)
         if (latestOver == 0) {
             overSince = 0L
@@ -83,18 +93,28 @@ class Warner(ctx: Context) {
             apply(0)
             return
         }
+        clicks(null)
         val now = SystemClock.elapsedRealtime()
         if (overSince == 0L) overSince = now
         val wait = GRACE_MS - (now - overSince)
-        if (wait > 0) {
+        if (wait > 0 && !early) {
             if (graceJob == null) graceJob = scope.launch { delay(wait); graceJob = null; apply(latestOver) }
             return
         }
+        graceJob?.cancel(); graceJob = null
         apply(latestOver)
     }
 
+    /** Förvarning om lägre gräns: tick-tick var [periodMs] (null = tyst). Hörs bara när ingen varning pågår. */
+    fun clicks(periodMs: Int?) {
+        val p = if (latestOver > 0 || !settings.beep) null else periodMs
+        if (p == clickPeriod) return
+        clickPeriod = p
+        clicker.play(p?.let { Beeper.click(it) })
+    }
+
     private fun apply(over: Int) {
-        beeper.play(if (settings.beep) Beeper.pattern(over) else null)
+        beeper.play(if (settings.beep) Beeper.pattern(over, sirenAt, settings.sound == SoundMode.TONE) else null)
         val newLevel = over.coerceIn(0, CONTINUOUS)
         if (newLevel == level && settings.vibrate == vibrateOn) return
         val rising = newLevel > level
@@ -141,6 +161,8 @@ class Warner(ctx: Context) {
         vibrator?.cancel()
         scope.cancel()
         beeper.stop()
+        clicker.stop()
+        clickPeriod = null
         level = 0
     }
 }
