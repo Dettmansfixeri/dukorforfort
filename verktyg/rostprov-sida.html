@@ -131,7 +131,7 @@ function rita() {
   const fraser = new Map();
   let doldaLanga = 0;
   for (const k of klipp) {
-    if ((k.bort || k.ersatt) && !$('fBort').checked) continue;   // borttagna (verktyg/rostbort.txt) eller ersatta av ett nytt klipp
+    if ((k.bort || k.ersatt || k.gorom) && !$('fBort').checked) continue;   // borttagna (verktyg/rostbort.txt) eller ersatta av ett nytt klipp
     if (k.godkand && !$('fGodkanda').checked) continue;   // redan godkända (verktyg/rostval.txt)
     if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr)) || (dolj && (fel.has(k.nr) || uttal.has(k.nr) || arMarkeradAvhuggen(k))) || (ohorda && hord.has(k.nr))) continue;
     // För långa klipp döljs (utom valda, så man inte tappar bort något man kryssat i).
@@ -140,7 +140,7 @@ function rita() {
     fraser.get(k.fras).push(k);
   }
   $('antalLanga').textContent = `(${klipp.filter((k) => !k.bort && !k.ersatt && (arLangt(k) || arAvhugget(k))).length} st)`;
-  $('antalBort').textContent = `(${klipp.filter((k) => k.bort || k.ersatt).length} st)`;
+  $('antalBort').textContent = `(${klipp.filter((k) => k.bort || k.ersatt || k.gorom).length} st)`;
   $('antalGodkanda').textContent = `(${klipp.filter((k) => k.godkand).length} st)`;
   let html = '';
   // Kortast först inom varje fras; okänd längd sist.

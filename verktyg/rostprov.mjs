@@ -281,6 +281,12 @@ const godkanda = new Set(fs.existsSync(valFil) ? fs.readFileSync(valFil, 'utf8')
 for (const k of bib.klipp) { if (godkanda.has(k.nr)) k.godkand = true; else delete k.godkand; }
 console.log(`${godkanda.size} klipp godkända.`);
 
+// Klipp som ska göras om (verktyg/rostgorom.txt) döljs också – de ersätts av nya.
+const goromFil = new URL('rostgorom.txt', import.meta.url);
+const gorom = new Set(fs.existsSync(goromFil) ? fs.readFileSync(goromFil, 'utf8').split('\n')
+  .filter((l) => !l.startsWith('#')).join(',').split(',').map((x) => x.trim()).filter(Boolean) : []);
+for (const k of bib.klipp) { if (gorom.has(k.nr)) k.gorom = true; else delete k.gorom; }
+
 fs.writeFileSync(path.join(UT, 'bibliotek.json'), JSON.stringify(bib, null, 1));
 
 // Röstpaket till appen: de godkända klippen som Opus 32 kbit/s (WebM, spelas av Android 5+)
