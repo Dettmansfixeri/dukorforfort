@@ -44,12 +44,18 @@ jobs:
       - name: Bygg och testa
         env:
           BUILD_NUMBER: ${{ github.run_number }}
+          ATTEMPT: ${{ github.run_attempt }}
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug testDebugUnitTest --no-daemon
           VERSION=$(grep -oP 'versionName = "\K[0-9.]+' app/build.gradle.kts).$BUILD_NUMBER
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/DuKorForFort-$VERSION.apk"
+          # Körs samma bygge om får filen ett eget namn (-r2 …), så att filen webben redan länkar till
+          # aldrig skrivs över. Webben börjar länka till den nya först när den är uppladdad.
+          APK="DuKorForFort-$VERSION.apk"
+          if [ "$ATTEMPT" -gt 1 ]; then APK="DuKorForFort-$VERSION-r$ATTEMPT.apk"; fi
+          echo "APK=$APK" >> "$GITHUB_ENV"
+          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/$APK"
           cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/DuKorForFort.apk"
 
       # Releasen raderas aldrig. Den nya filen (med versionen i namnet) läggs till bredvid de gamla,
@@ -62,7 +68,7 @@ jobs:
             gh release create app --title "Appen" --notes "Senaste bygget av appen." \
               --target "$GITHUB_SHA" --latest=false
           fi
-          gh release upload app "$RUNNER_TEMP/DuKorForFort-$VERSION.apk" --clobber
+          gh release upload app "$RUNNER_TEMP/$APK"
 
       # Lägger app-version.json på webbsidan så att knappen kan visa version och länka rätt
       # utan att fråga GitHubs API (som har en gräns per besökare).
@@ -71,9 +77,9 @@ jobs:
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
-          SIZE=$(stat -c %s "$RUNNER_TEMP/DuKorForFort-$VERSION.apk")
+          SIZE=$(stat -c %s "$RUNNER_TEMP/$APK")
           cat > "$RUNNER_TEMP/app-version.json" <<EOF
-          {"version":"$VERSION","url":"https://github.com/${GITHUB_REPOSITORY}/releases/download/app/DuKorForFort-$VERSION.apk","size":$SIZE,"built":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+          {"version":"$VERSION","url":"https://github.com/${GITHUB_REPOSITORY}/releases/download/app/$APK","size":$SIZE,"built":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
           EOF
           sudo apt-get update -qq && sudo apt-get install -y -qq lftp
           lftp -c "
@@ -95,6 +101,6 @@ jobs:
           gh release edit app --title "Appen $VERSION" \
             --notes "Senaste bygget av appen, version $VERSION (${GITHUB_SHA::7})."
           gh release view app --json assets --jq '.assets[].name' \
-            | grep -E '^DuKorForFort-[0-9.]+\.apk$' \
-            | sort -t. -k3,3n | head -n -2 \
+            | grep -E '^DuKorForFort-[0-9.]+(-r[0-9]+)?\.apk$' \
+            | sort -V | head -n -2 \
             | while read -r old; do gh release delete-asset app "$old" --yes; done

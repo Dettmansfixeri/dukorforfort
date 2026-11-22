@@ -72,19 +72,33 @@ object VoicePack {
         }
     }
 
-    /** Hämtar nytt röstpaket om det finns. Utan nät händer ingenting (det gamla finns kvar). */
+    /** Bara en hämtning åt gången (tas innan första nätverksanropet). */
+    private val busy = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Hämtar nytt röstpaket om det finns. Som med vägdatan: det nya packas upp för sig och kontrolleras
+     * (manifestet går att läsa, alla klipp finns) och byts in först när allt är klart. Går något fel
+     * finns det gamla paketet kvar och fungerar. Utan nät händer ingenting.
+     */
     suspend fun sync(ctx: Context) = withContext(Dispatchers.IO) {
-        if (_state.value is State.Downloading) return@withContext
+        if (!busy.compareAndSet(false, true)) return@withContext
+        try { syncLocked(ctx) } finally { busy.set(false) }
+    }
+
+    private fun syncLocked(ctx: Context) {
         load(ctx)
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val remote = try {
             JSONObject(open(BASE + "rostpaket.json").use { it.readBytes().toString(Charsets.UTF_8) })
-        } catch (e: Exception) { return@withContext }
+        } catch (e: Exception) { return }
         val version = remote.optString("version")
         val size = remote.optLong("size", 0)
-        if (version.isEmpty() || (version == prefs.getString("version", null) && _state.value is State.Ready)) return@withContext
+        if (version.isEmpty() || (version == prefs.getString("version", null) && _state.value is State.Ready)) return
+        val before = _state.value
         _state.value = State.Downloading(0f)
-        val tmp = File(ctx.cacheDir, "rostpaket-ny").apply { deleteRecursively(); mkdirs() }
+        // Samma filsystem som det riktiga paketet, så att bytet blir ett enkelt namnbyte.
+        val tmp = File(ctx.filesDir, "roster-ny").apply { deleteRecursively(); mkdirs() }
+        val old = File(ctx.filesDir, "roster-gammal")
         try {
             var read = 0L
             open(BASE + "rostpaket.zip").use { raw ->
@@ -104,16 +118,33 @@ object VoicePack {
                     }
                 }
             }
-            if (!File(tmp, "manifest.json").exists()) throw IllegalStateException("manifest.json saknas")
+            check(tmp)
+            // Byt: nuvarande → gammal, ny → nuvarande. Misslyckas det läggs det gamla tillbaka.
             val d = dir(ctx)
-            d.deleteRecursively()
-            if (!tmp.renameTo(d)) { tmp.copyRecursively(d, overwrite = true); tmp.deleteRecursively() }
+            old.deleteRecursively()
+            if (d.exists() && !d.renameTo(old)) throw IllegalStateException("kunde inte flytta det gamla paketet")
+            if (!tmp.renameTo(d)) {
+                if (old.exists()) old.renameTo(d)
+                throw IllegalStateException("kunde inte byta in det nya paketet")
+            }
+            old.deleteRecursively()
             prefs.edit().putString("version", version).apply()
             load(ctx)
         } catch (e: Exception) {
             tmp.deleteRecursively()
             load(ctx)
-            if (_state.value !is State.Ready) _state.value = State.Failed("Röstpaketet kunde inte laddas ner")
+            if (_state.value !is State.Ready) _state.value =
+                if (before is State.Ready) before else State.Failed("Röstpaketet kunde inte laddas ner")
+        }
+    }
+
+    /** Manifestet ska gå att läsa och varje klipp det nämner ska finnas (och inte vara tomt). */
+    private fun check(dir: File) {
+        val json = JSONObject(File(dir, "manifest.json").readText())
+        val arr = json.getJSONArray("klipp")
+        for (i in 0 until arr.length()) {
+            val f = File(dir, File(arr.getJSONObject(i).getString("fil")).name)
+            if (!f.isFile || f.length() == 0L) throw IllegalStateException("klipp saknas: ${f.name}")
         }
     }
 
