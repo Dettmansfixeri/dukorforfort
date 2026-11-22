@@ -160,9 +160,10 @@ object ClipLines {
         val s = limit + st
         val out = ArrayList<String>()
         SpeedFacts.impactKmh(s, limit).takeIf { it >= 5 }?.let { out += "Där du hade stannat i $limit kör du nu på i $it kilometer i timmen." }
-        SpeedFacts.secondsSavedPerMil(s, limit).takeIf { it >= 5 }?.let { out += "Du sparar $it sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?" }
+        // Sparade sekunder och luftmotstånd säger inget på 10–30-vägar – bara på snabbare vägar.
+        if (limit > 30) SpeedFacts.secondsSavedPerMil(s, limit).takeIf { it >= 5 }?.let { out += "Du sparar $it sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?" }
         SpeedFacts.extraStopMeters(s, limit).takeIf { it >= 2 }?.let { out += "Din stoppsträcka är $it meter längre än om du hållit hastigheten. Hoppas ingen går över vägen." }
-        SpeedFacts.extraDragPercent(s, limit).takeIf { it >= 5 }?.let { out += "Nu har du ökat luftmotståndet med $it procent jämfört med om du hållit hastigheten. Plånboken gråter." }
+        if (limit > 30) SpeedFacts.extraDragPercent(s, limit).takeIf { it >= 5 }?.let { out += "Nu har du ökat luftmotståndet med $it procent jämfört med om du hållit hastigheten. Plånboken gråter." }
         return out
     }
 
