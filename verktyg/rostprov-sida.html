@@ -38,9 +38,9 @@ h1.grupp{font-size:1.5em;margin:1.6em 0 .2em;padding:6px 10px;background:#ffcc00
   <label>Röst <select id="fRost"><option value="">Alla</option></select></label>
   <label>Modell <select id="fModell"><option value="">Alla</option></select></label>
   <label><input type="checkbox" id="fValda"> Bara valda</label>
-  <label><input type="checkbox" id="fDoljFel"> Dölj de med fel</label>
+  <label><input type="checkbox" id="fDoljFel"> Dölj de som ska göras om</label>
   <label><input type="checkbox" id="fOhorda"> Bara de jag inte lyssnat på</label>
-  <label><input type="checkbox" id="fLangst"> Visa även för långa <span id="antalLanga"></span></label>
+  <label><input type="checkbox" id="fLangst"> Visa även för långa och avhuggna <span id="antalLanga"></span></label>
   <label><input type="checkbox" id="fBort"> Visa borttagna <span id="antalBort"></span></label>
   <span class="info">Kortast först. För långa klipp (mycket längre än de andra med samma fras – läser oftast upp stilen) är dolda.
     Visas de är tiden <span style="color:#ff9800;font-weight:700">orange</span>.</span>
@@ -55,8 +55,8 @@ h1.grupp{font-size:1.5em;margin:1.6em 0 .2em;padding:6px 10px;background:#ffcc00
     <button id="rensa">Rensa</button>
   </div>
   <div class="rad felrad">
-    <span id="antalFel">0 med fel</span>
-    <input id="felkoder" readonly placeholder="Klipp som låter fel (läser upp stilen, säger fel tal …)">
+    <span id="antalFel">0 att göra om</span>
+    <input id="felkoder" readonly placeholder="Klistra in i Röstprov, fältet Gör om">
     <button id="kopieraFel">Kopiera</button>
   </div>
 </div>
@@ -76,6 +76,12 @@ try { langd = JSON.parse(localStorage.getItem('rostlangd') || '{}'); } catch (e)
 let ritaIgen = null;   // ritar om (sorterar/döljer) när nya längder kommit in
 const fmtLangd = (s) => s == null ? '…' : s.toFixed(1).replace('.', ',') + ' s';
 /** Är klippet mycket längre än de andra med samma fras? (Rösten har kanske läst upp stilen.) */
+/** Slutar klippet tvärt (troligen avhugget mitt i ett ord)? Mätt av Röstprov. */
+const arAvhugget = (k) => typeof k.slut === 'number' && k.slut > -30;
+/** Ska göras om av sig själv: för långt eller avhugget (inte de som redan är ersatta eller borttagna). */
+let ejGorOm = new Set();   // automatiskt flaggade som man ändå godkänt (kryssat ur 'gör om')
+try { ejGorOm = new Set(JSON.parse(localStorage.getItem('rostejgorom') || '[]')); } catch (e) {}
+const autoGorOm = (k) => !k.bort && !k.ersatt && !valda.has(k.nr) && !ejGorOm.has(k.nr) && (arLangt(k) || arAvhugget(k));
 function arLangt(k) {
   const s = langd[k.nr];
   if (s == null) return false;
@@ -99,9 +105,11 @@ function spara() {
   $('koder').value = lista.join(', ');
   $('antal').textContent = lista.length + (lista.length === 1 ? ' vald' : ' valda');
   try { localStorage.setItem('rostfel', JSON.stringify([...fel])); } catch (e) {}
-  const fl = [...fel].sort();
+  // Att göra om = de man markerat + för långa och avhuggna (inte ersatta eller borttagna).
+  const fl = [...new Set([...fel, ...klipp.filter(autoGorOm).map((k) => k.nr)])]
+    .filter((nr) => { const k = klipp.find((x) => x.nr === nr); return k && !k.ersatt && !k.bort; }).sort();
   $('felkoder').value = fl.join(', ');
-  $('antalFel').textContent = fl.length + ' med fel';
+  $('antalFel').textContent = fl.length + ' att göra om';
   try { localStorage.setItem('rosthord', JSON.stringify([...hord])); } catch (e) {}
   const finns = klipp.filter((k) => hord.has(k.nr)).length;
   $('antalHorda').textContent = `Lyssnat på ${finns} av ${klipp.length}`;
@@ -113,15 +121,15 @@ function rita() {
   const fraser = new Map();
   let doldaLanga = 0;
   for (const k of klipp) {
-    if (k.bort && !$('fBort').checked) continue;   // borttagna (verktyg/rostbort.txt)
+    if ((k.bort || k.ersatt) && !$('fBort').checked) continue;   // borttagna (verktyg/rostbort.txt) eller ersatta av ett nytt klipp
     if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr)) || (dolj && fel.has(k.nr)) || (ohorda && hord.has(k.nr))) continue;
     // För långa klipp döljs (utom valda, så man inte tappar bort något man kryssat i).
-    if (!visaLanga && arLangt(k) && !valda.has(k.nr)) { doldaLanga++; continue; }
+    if (!visaLanga && (arLangt(k) || arAvhugget(k)) && !valda.has(k.nr)) { doldaLanga++; continue; }
     if (!fraser.has(k.fras)) fraser.set(k.fras, []);
     fraser.get(k.fras).push(k);
   }
-  $('antalLanga').textContent = `(${klipp.filter((k) => !k.bort && arLangt(k)).length} st)`;
-  $('antalBort').textContent = `(${klipp.filter((k) => k.bort).length} st)`;
+  $('antalLanga').textContent = `(${klipp.filter((k) => !k.bort && !k.ersatt && (arLangt(k) || arAvhugget(k))).length} st)`;
+  $('antalBort').textContent = `(${klipp.filter((k) => k.bort || k.ersatt).length} st)`;
   let html = '';
   // Kortast först inom varje fras; okänd längd sist.
   for (const lista of fraser.values()) lista.sort((a, b) => (langd[a.nr] ?? 1e9) - (langd[b.nr] ?? 1e9));
@@ -135,15 +143,15 @@ function rita() {
     if (grupp !== forra) { html += `<h1 class="grupp">${esc(grupp)}</h1>`; forra = grupp; }
     html += `<h2>${esc(fras)}</h2><div class="klipp">`;
     for (const k of lista) {
-      const v = valda.has(k.nr), f = fel.has(k.nr), h = hord.has(k.nr);
+      const v = valda.has(k.nr), f = fel.has(k.nr) || autoGorOm(k), h = hord.has(k.nr);
       html += `<div class="k${v ? ' vald' : ''}${f ? ' fel' : ''}${h ? ' lyssnad' : ''}" data-k="${esc(k.nr)}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
         <label><input type="checkbox" data-nr="${esc(k.nr)}"${v ? ' checked' : ''}>
         <span class="nr">${esc(k.nr)}</span>
         <span>${esc(k.rost)}<br><span class="om">${esc(k.modell)} · ${esc(k.skapad)}</span></span></label>
-        <span class="langd${arLangt(k) ? ' lang' : ''}" data-langd="${esc(k.nr)}">${fmtLangd(langd[k.nr])}</span>
+        <span class="langd${arLangt(k) ? ' lang' : ''}" data-langd="${esc(k.nr)}">${fmtLangd(langd[k.nr])}${arAvhugget(k) ? ' <b style="color:#e05050">avhugget?</b>' : ''}</span>
         <audio controls preload="${langd[k.nr] == null ? 'metadata' : 'none'}" src="${esc(k.fil)}"></audio>
         <span class="hord">${h ? '✓ lyssnad' : ''}</span>
-        <label class="flagga" title="Något är fel: läser upp stilen, säger fel tal …"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>fel</label></div>`;
+        <label class="flagga" title="Spela in igen: läser upp stilen, huggs av, fel uttal …"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>gör om</label></div>`;
     }
     html += '</div>';
   }
@@ -153,7 +161,8 @@ function rita() {
 $('lista').addEventListener('change', (e) => {
   const fnr = e.target.dataset && e.target.dataset.fel;
   if (fnr) {
-    if (e.target.checked) fel.add(fnr); else fel.delete(fnr);
+    if (e.target.checked) { fel.add(fnr); ejGorOm.delete(fnr); } else { fel.delete(fnr); ejGorOm.add(fnr); }
+    try { localStorage.setItem('rostejgorom', JSON.stringify([...ejGorOm])); } catch (err) {}
     e.target.closest('.k').classList.toggle('fel', e.target.checked);
     spara();
     return;

@@ -31,6 +31,10 @@ on:
         description: "Modeller: chirp, gemini-flash, gemini-pro (tomt = inga nya klipp, bara uppdatera sidan)"
         required: false
         default: "gemini-pro"
+      gor_om:
+        description: "Gör om: nummer på klipp som ska spelas in igen (kommatecken emellan). Då görs inget annat."
+        required: false
+        default: ""
       fraslista:
         description: "Fil med fraser, \"antal röster | fras\" per rad (tomt = använd Fraser nedan)"
         required: false
@@ -85,6 +89,7 @@ jobs:
           TAGNINGAR: ${{ inputs.tagningar }}
           TEMPO: ${{ inputs.tempo }}
           FRASLISTA: ${{ inputs.fraslista }}
+          GOR_OM: ${{ inputs.gor_om }}
         run: node verktyg/rostprov.mjs
 
       - name: Spara som nedladdning också

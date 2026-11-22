@@ -133,7 +133,17 @@ async function tala(text, rost, modell) {
 // jämnt i tur och ordning så att alla röster får lika många. Annars: varje fras × varje röst.
 const jobb = [];
 const FRASLISTA = (process.env.FRASLISTA || '').trim();
-if (FRASLISTA && modeller.length) {
+// GOR_OM = nummer på klipp som ska spelas in igen (samma fras, röst och modell). Det gamla klippet
+// märks som ersatt och döljs på sidan.
+const GOR_OM = (process.env.GOR_OM || '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean).map((s) => s.padStart(3, '0'));
+if (GOR_OM.length) {
+  for (const nr of GOR_OM) {
+    const k = bib.klipp.find((x) => x.nr === nr);
+    if (!k) { console.log('Finns inte:', nr); continue; }
+    const modell = Object.keys(MODELL).find((m) => MODELL[m].namn === k.modell) || 'gemini-pro';
+    jobb.push({ fras: k.fras, rost: k.rost, modell, t: (k.tagning || 1) + 1, grupp: k.grupp || '', ersatter: nr });
+  }
+} else if (FRASLISTA && modeller.length) {
   const rader = fs.readFileSync(FRASLISTA, 'utf8').split('\n').map((r) => r.trim()).filter((r) => r && (!r.startsWith('#') || r.startsWith('##')));
   let tur = 0;
   let grupp = '';
@@ -171,7 +181,7 @@ await Promise.all(Array.from({ length: PARALLELLT }, async () => {
 let fel = 0;
 let nya = 0;
 for (let i = 0; i < jobb.length; i++) {
-  const { fras, rost, modell, t, grupp } = jobb[i];
+  const { fras, rost, modell, t, grupp, ersatter } = jobb[i];
   const ljud = ljuden[i];
   if (!ljud || ljud.fel) { fel++; console.log('FEL', rost, modell, t, fras.slice(0, 40), ljud && ljud.fel); continue; }
   while (await finnsPaServern(nummer(bib.nasta))) bib.nasta++;
@@ -182,6 +192,7 @@ for (let i = 0; i < jobb.length; i++) {
   bib.klipp.push({ nr, fil, fras, rost, modell: MODELL[modell].namn, tagning: t,
     stil: MODELL[modell].gemini ? stil : '', tempo: MODELL[modell].gemini ? null : tempo, skapad: korning,
     ...(grupp ? { grupp } : {}) });
+  if (ersatter) { const gammal = bib.klipp.find((x) => x.nr === ersatter); if (gammal) gammal.ersatt = nr; }
   nya++;
   console.log('ok ', nr, rost, modell, t);
 }
@@ -193,9 +204,20 @@ function langdAv(fil) {
   const s = parseFloat(r.stdout);
   return r.status === 0 && isFinite(s) ? Math.round(s * 100) / 100 : null;
 }
+// Hur starkt klippet slutar (dB, starkaste ljudet de sista 50 ms). Normalt tonar rösten ut till
+// −40 dB eller tystare; högre än −30 dB betyder att klippet troligen huggits av mitt i ett ord.
+function slutDb(fil) {
+  const r = spawnSync('ffmpeg', ['-v', 'error', '-i', fil, '-f', 's16le', '-ac', '1', '-ar', '24000', 'pipe:1'], { maxBuffer: 64 << 20 });
+  if (r.status !== 0 || !r.stdout?.length) return null;
+  const pcm = r.stdout;
+  const n = pcm.length >> 1;
+  let m = 0;
+  for (let i = Math.max(0, n - 1200); i < n; i++) m = Math.max(m, Math.abs(pcm.readInt16LE(i * 2)));
+  return Math.round(20 * Math.log10(m / 32768 + 1e-9));
+}
 let matta = 0;
 for (const k of bib.klipp) {
-  if (typeof k.sek === 'number') continue;
+  if (typeof k.sek === 'number' && typeof k.slut === 'number') continue;
   let lokal = path.join(UT, k.fil);
   if (!fs.existsSync(lokal)) {
     if (process.env.LOKALT) continue;
@@ -205,8 +227,11 @@ for (const k of bib.klipp) {
     fs.writeFileSync(lokal, Buffer.from(await r.arrayBuffer()));
   }
   const s = langdAv(lokal);
+  const db = slutDb(lokal);
   if (lokal.includes('tmp-')) fs.rmSync(lokal);
-  if (s != null) { k.sek = s; matta++; }
+  if (s != null) k.sek = s;
+  if (db != null) k.slut = db;
+  if (s != null || db != null) matta++;
 }
 console.log(`Mätte längden på ${matta} klipp.`);
 
