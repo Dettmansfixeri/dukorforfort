@@ -2,7 +2,9 @@
 #   https://dukorforfort.dettmansfixeri.se/rostprov/
 # Inga klipp raderas. Varje nytt klipp får nästa lediga löpnummer (001, 002 …),
 # som aldrig återanvänds. Klippen laddas upp först, biblioteket sist.
-# Körs bara med knappen "Run workflow" (Actions → Röstprov).
+# Nya klipp: knappen "Run workflow" (Actions → Röstprov).
+# Ändras lyssningssidan eller listorna i verktyg/ körs den av sig själv utan nya klipp
+# (då är alla inputs tomma) och uppdaterar bara sidan.
 #
 # Secret (Settings → Secrets and variables → Actions):
 #   GOOGLE_TTS_KEY   API-nyckel från Google Cloud-projektet "dukorforfort",
@@ -12,6 +14,14 @@
 name: Röstprov
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - verktyg/rostprov-sida.html
+      - verktyg/rostbort.txt
+      - verktyg/rostval.txt
+      - verktyg/rostprov.mjs
+      - .github/workflows/rostprov.yml
   workflow_dispatch:
     inputs:
       roster:
