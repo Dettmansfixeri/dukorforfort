@@ -26,7 +26,7 @@ on:
         default: "Det här kostar dig ett tusen femhundra kronor i böter.|Det här kostar dig två tusen kronor i böter.|Det här kostar dig två tusen fyrahundra kronor i böter.|Det här kostar dig två tusen åttahundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter.|Det här kostar dig tre tusen sexhundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig tre tusen sexhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig fyra tusen kronor i böter. Plus busskort i minst två månader."
       stil:
         description: "Stilinstruktion (bara Gemini)"
-        default: "Jämnt och ganska snabbt tempo hela meningen. Torr, irriterad och lite sarkastisk. Uttala kör som i att köra bil."
+        default: "Jämnt och ganska snabbt tempo hela meningen. Torr, irriterad och lite sarkastisk."
       tagningar:
         description: "Antal versioner per klipp (1–5)"
         default: "1"
