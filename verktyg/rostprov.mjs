@@ -128,30 +128,59 @@ async function tala(text, rost, modell) {
   }
 }
 
-let fel = 0;
-let nya = 0;
-for (const fras of fraser) {
-  for (const rost of roster) {
-    for (const modell of modeller) {
-      for (let t = 1; t <= tagningar; t++) {
-        try {
-          const ljud = await tala(fras, rost, modell);
-          while (await finnsPaServern(nummer(bib.nasta))) bib.nasta++;
-          const nr = nummer(bib.nasta);
-          const fil = `ljud/${nr}.${ljud.ext}`;
-          fs.writeFileSync(path.join(UT, fil), ljud.data);
-          bib.nasta++; // numret är förbrukat nu, även om klippet skulle tas bort senare
-          bib.klipp.push({ nr, fil, fras, rost, modell: MODELL[modell].namn, tagning: t,
-            stil: MODELL[modell].gemini ? stil : '', tempo: MODELL[modell].gemini ? null : tempo, skapad: korning });
-          nya++;
-          console.log('ok ', nr, rost, modell, t);
-        } catch (e) {
-          fel++;
-          console.log('FEL', rost, modell, t, e.message);
-        }
-      }
+// Vad som ska spelas in: { fras, rost, modell, t }.
+// FRASLISTA = fil med "antal röster | fras" per rad: varje fras får så många röster, fördelade
+// jämnt i tur och ordning så att alla röster får lika många. Annars: varje fras × varje röst.
+const jobb = [];
+const FRASLISTA = (process.env.FRASLISTA || '').trim();
+if (FRASLISTA && modeller.length) {
+  const rader = fs.readFileSync(FRASLISTA, 'utf8').split('\n').map((r) => r.trim()).filter((r) => r && !r.startsWith('#'));
+  let tur = 0;
+  for (const rad of rader) {
+    const m = /^(\d+)\s*\|\s*(.+)$/.exec(rad);
+    const antal = m ? Math.min(+m[1], roster.length) : roster.length;
+    const fras = m ? m[2] : rad;
+    for (let i = 0; i < antal; i++) {
+      const rost = roster[tur++ % roster.length];
+      for (const modell of modeller) for (let t = 1; t <= tagningar; t++) jobb.push({ fras, rost, modell, t });
     }
   }
+} else {
+  for (const fras of fraser) for (const rost of roster) for (const modell of modeller)
+    for (let t = 1; t <= tagningar; t++) jobb.push({ fras, rost, modell, t });
+}
+console.log(`${jobb.length} klipp att spela in.`);
+
+// Spela in några åt gången (snabbare), numrera sedan i listans ordning.
+const PARALLELLT = Math.max(1, parseInt(process.env.PARALLELLT || '3', 10) || 1);
+const ljuden = new Array(jobb.length);
+let nasta = 0;
+let klara = 0;
+await Promise.all(Array.from({ length: PARALLELLT }, async () => {
+  while (nasta < jobb.length) {
+    const i = nasta++;
+    const j = jobb[i];
+    try { ljuden[i] = await tala(j.fras, j.rost, j.modell); }
+    catch (e) { ljuden[i] = { fel: e.message }; }
+    if (++klara % 20 === 0) console.log(`… ${klara}/${jobb.length}`);
+  }
+}));
+
+let fel = 0;
+let nya = 0;
+for (let i = 0; i < jobb.length; i++) {
+  const { fras, rost, modell, t } = jobb[i];
+  const ljud = ljuden[i];
+  if (!ljud || ljud.fel) { fel++; console.log('FEL', rost, modell, t, fras.slice(0, 40), ljud && ljud.fel); continue; }
+  while (await finnsPaServern(nummer(bib.nasta))) bib.nasta++;
+  const nr = nummer(bib.nasta);
+  const fil = `ljud/${nr}.${ljud.ext}`;
+  fs.writeFileSync(path.join(UT, fil), ljud.data);
+  bib.nasta++; // numret är förbrukat nu, även om klippet skulle tas bort senare
+  bib.klipp.push({ nr, fil, fras, rost, modell: MODELL[modell].namn, tagning: t,
+    stil: MODELL[modell].gemini ? stil : '', tempo: MODELL[modell].gemini ? null : tempo, skapad: korning });
+  nya++;
+  console.log('ok ', nr, rost, modell, t);
 }
 
 // Längd (sekunder) på varje klipp, så lyssningssidan kan sortera och dölja för långa direkt.

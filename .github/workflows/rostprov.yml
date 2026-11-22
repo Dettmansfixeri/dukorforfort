@@ -31,6 +31,10 @@ on:
         description: "Modeller: chirp, gemini-flash, gemini-pro (tomt = inga nya klipp, bara uppdatera sidan)"
         required: false
         default: "gemini-pro"
+      fraslista:
+        description: "Fil med fraser, \"antal röster | fras\" per rad (tomt = använd Fraser nedan)"
+        required: false
+        default: "verktyg/fraser-nya.txt"
       fraser:
         description: "Fraser (| emellan)"
         default: "Det här kostar dig ett tusen femhundra kronor i böter.|Det här kostar dig två tusen kronor i böter.|Det här kostar dig två tusen fyrahundra kronor i böter.|Det här kostar dig två tusen åttahundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter.|Det här kostar dig tre tusen sexhundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig tre tusen sexhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig fyra tusen kronor i böter. Plus busskort i minst två månader."
@@ -49,7 +53,7 @@ concurrency: rostprov
 jobs:
   prov:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -80,6 +84,7 @@ jobs:
           STIL: ${{ inputs.stil }}
           TAGNINGAR: ${{ inputs.tagningar }}
           TEMPO: ${{ inputs.tempo }}
+          FRASLISTA: ${{ inputs.fraslista }}
         run: node verktyg/rostprov.mjs
 
       - name: Spara som nedladdning också
