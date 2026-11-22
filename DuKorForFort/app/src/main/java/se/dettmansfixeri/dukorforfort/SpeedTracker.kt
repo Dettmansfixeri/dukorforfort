@@ -298,6 +298,7 @@ object SpeedTracker {
             while (isActive) {
                 delay(DataManager.CHECK_INTERVAL_MS)
                 DataManager.checkForUpdate(ctx)
+                if (_settings.value.voicesOn) VoicePack.sync(ctx)
                 AppUpdater.check()
             }
         }

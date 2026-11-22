@@ -159,7 +159,9 @@ if (FRASLISTA && modeller.length) {
       gruppStil = egen ? egen.trim() : STIL_STANDARD;
       continue;
     }
-    if (bara.length && !bara.includes(grupp.toLowerCase())) continue;
+    // 'Snäll' tar med alla Snäll-grupper ('Snäll tätort' osv.).
+    const gl = grupp.toLowerCase();
+    if (bara.length && !bara.some((b) => gl === b || gl.startsWith(b + ' '))) continue;
     const m = /^(\d+)\s*\|\s*(.+)$/.exec(rad);
     const antal = m ? Math.min(+m[1], roster.length) : roster.length;
     const fras = m ? m[2] : rad;
@@ -262,7 +264,14 @@ if (fs.existsSync(listFil)) {
     if (rad.startsWith('##')) g = rad.replace(/^#+\s*/, '').split(' @ ')[0].trim();
     else if (/^\d+\s*\|/.test(rad)) gruppFor.set(rad.replace(/^\d+\s*\|\s*/, ''), g);
   }
-  for (const k of bib.klipp) if (k.grupp && gruppFor.has(k.fras)) k.grupp = gruppFor.get(k.fras);
+  for (const k of bib.klipp) if (gruppFor.has(k.fras)) k.grupp = gruppFor.get(k.fras);
+}
+// Äldre klipp utan grupp: böter, CYKLA (körkortsgränsen), övriga är fasta kommentarer.
+for (const k of bib.klipp) {
+  if (k.fras.includes('kronor i böter')) k.grupp = 'Böter';
+  else if (k.fras.includes('DÅ DU MÅSTE CYKLA')) k.grupp = 'Körkort';
+  else if (k.fras === 'Tack. Var det så svårt?') k.grupp = 'Tack';
+  else if (!k.grupp) k.grupp = 'Fasta kommentarer';
 }
 
 // Godkända klipp (verktyg/rostval.txt) är redan klara – sidan visar dem bara om man vill.

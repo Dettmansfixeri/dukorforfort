@@ -28,8 +28,8 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // Grupper i ordning: fasta kommentarer, böter (lägst belopp först), skylten, sedan vägarna 10 → 120.
-const gruppAv = (k) => k.grupp || (k.fras.includes('kronor i böter') ? 'Böter' : 'Fasta kommentarer');
-const gruppOrdning = (g) => { const m = /^(\d+)-väg$/.exec(g); return m ? 100 + +m[1] : ({ 'Fasta kommentarer': 0, 'Böter': 1, 'Skylten': 2, 'Tätort': 3, 'Snäll': 4 }[g] ?? 99); };
+const gruppAv = (k) => k.grupp || (k.fras.includes('kronor i böter') ? 'Böter' : k.fras.includes('CYKLA') ? 'Körkort' : k.fras.startsWith('Tack.') ? 'Tack' : 'Fasta kommentarer');
+const gruppOrdning = (g) => { const m = /^(\d+)-väg$/.exec(g); return m ? 100 + +m[1] : ({ 'Fasta kommentarer': 0, 'Körkort': 1, 'Tack': 2, 'Böter': 3, 'Skylten': 4, 'Tätort': 5, 'Snäll': 6, 'Snäll skylten': 7, 'Snäll tätort': 8, 'Snäll körkort': 9, 'Snäll tack': 10 }[g] ?? 99); };
 const BELOPP = { 'ett tusen femhundra': 1500, 'två tusen': 2000, 'två tusen fyrahundra': 2400, 'två tusen åttahundra': 2800,
   'tre tusen tvåhundra': 3200, 'tre tusen sexhundra': 3600, 'fyra tusen': 4000 };
 const belopp = (f) => { const m = /kostar dig (.+?) kronor/.exec(f); return m ? (BELOPP[m[1]] || 0) : 0; };
@@ -43,7 +43,7 @@ const FASTA = ['Du kör för fort, IDIOT!', 'Är gaspedalen fastlimmad, eller?',
 /** Sorteringsnyckel för en fras inom sin grupp. */
 function frasOrdning(g, f) {
   if (g === 'Böter') return [f.includes('busskort') ? 1 : 0, belopp(f)];
-  if (g === 'Skylten') return [tal(f), 0];
+  if (/skylten/i.test(g)) return [tal(f), 0];
   if (g === 'Fasta kommentarer') { const i = FASTA.indexOf(f); return [i < 0 ? 99 : i, 0]; }
   return [typ(f), tal(f.replace(/^Där du hade stannat i \d+/, ''))];   // vägarna: per sorts fakta, sedan siffran
 }

@@ -82,6 +82,7 @@ fun DataGate() {
         SpeedTracker.loadSettings(ctx)
         AutoStart.apply(ctx, SpeedTracker.settings.value)
         AppUpdater.check()
+        if (SpeedTracker.settings.value.voicesOn) VoicePack.sync(ctx)
         DataManager.checkForUpdate(ctx)
     }
     // Kolla appversionen igen varje gång appen tas fram (den kan ha legat i bakgrunden länge).

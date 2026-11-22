@@ -1,36 +1,57 @@
 package se.dettmansfixeri.dukorforfort
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
 
-/** Texterna appen letar efter måste vara exakt de som spelats in (verktyg/fraser-nya.txt och bötesfraserna). */
+/** Texterna appen räknar ut måste vara exakt de som spelats in (verktyg/fraser-nya.txt och bötesfraserna). */
 class ClipLinesTest {
 
     private val lista = File("../../verktyg/fraser-nya.txt")
     private val workflow = File("../../.github/workflows/rostprov.yml")
 
-    private fun inspelade(): Set<String> {
+    /** Grupp → fraser ur inspelningslistan, plus böterna. */
+    private fun grupper(): Map<String, List<String>> {
         assumeTrue("verktyg/fraser-nya.txt saknas", lista.exists() && workflow.exists())
-        val fraser = lista.readLines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }
-            .map { it.substringAfter("|").trim() }
-        val boter = Regex("default: \"(Det här kostar dig[^\"]*)\"").find(workflow.readText())!!.groupValues[1].split("|")
-        return (fraser + boter).toSet()
+        val ut = LinkedHashMap<String, MutableList<String>>()
+        var g = ""
+        for (rad in lista.readLines().map { it.trim() }) {
+            if (rad.startsWith("##")) g = rad.removePrefix("##").substringBefore(" @ ").trim()
+            else if (rad.isNotEmpty() && !rad.startsWith("#")) ut.getOrPut(g) { ArrayList() } += rad.substringAfter("|").trim()
+        }
+        ut["Böter"] = Regex("default: \"(Det här kostar dig[^\"]*)\"").find(workflow.readText())!!.groupValues[1].split("|").toMutableList()
+        return ut
     }
 
     @Test fun allaUtrakandeFraserFinnsInspelade() {
-        val finns = inspelade()
+        val finns = grupper().values.flatten().toSet()
         for (limit in ClipLines.LIMITS) for (over in 1..45) {
             for (f in ClipLines.facts(over, limit)) assertTrue("saknas: $f", f in finns)
             assertTrue("saknas: ${ClipLines.fineText(over, limit)}", ClipLines.fineText(over, limit) in finns)
         }
-        for (limit in ClipLines.LIMITS) assertTrue(ClipLines.signText(limit) in finns)
-        for (f in ClipLines.INSULTS.drop(1)) assertTrue("saknas: $f", f in finns)
-        assertTrue(ClipLines.THANKS in finns)
-        for (f in ClipLines.TOWN + ClipLines.NICE + ClipLines.NICE_TOWN + ClipLines.NICE_THANKS + ClipLines.NICE_LICENSE) assertTrue("saknas: $f", f in finns)
-        for (limit in ClipLines.LIMITS) assertTrue(ClipLines.niceSignText(limit) in finns)
+    }
+
+    @Test fun gruppreglerna() {
+        val g = grupper()
+        val elak50 = ClipLines.fromGroups(g, nice = false, closing = false, over = 5, limit = 50)
+        val elak90 = ClipLines.fromGroups(g, nice = false, closing = false, over = 5, limit = 90)
+        val snall50 = ClipLines.fromGroups(g, nice = true, closing = false, over = 5, limit = 50)
+        assertTrue("Det här är en gata, inte Le Mans." in elak50)          // tätort på 50
+        assertFalse("Det här är en gata, inte Le Mans." in elak90)         // men inte på 90
+        assertTrue("Hallå? Skylten säger 50." in elak50)
+        assertFalse("Hallå? Skylten säger 30." in elak50)                  // bara rätt gräns
+        assertFalse(elak50.any { it.startsWith("Det här kostar dig") })     // böterna sägs för sig
+        assertFalse("Du kör lite för fort." in elak50)                     // snällt bara på snäll nivå
+        assertTrue("Du kör lite för fort." in snall50)
+        assertTrue("Skylten säger 50, bara så du vet." in snall50)
+        assertFalse("Nu är du nära att bli av med körkortet. Släpp gasen." in snall50)
+        assertTrue("Nu är du nära att bli av med körkortet. Släpp gasen." in
+            ClipLines.fromGroups(g, nice = true, closing = false, over = 31, limit = 50))
+        assertEquals(listOf("Tack, nu kör du lagligt igen.", "Bra, så ska det se ut."),
+            ClipLines.fromGroups(g, nice = true, closing = true, over = 1, limit = 50))
     }
 
     @Test fun boter() {

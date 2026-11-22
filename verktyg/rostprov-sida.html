@@ -146,8 +146,8 @@ function rita() {
   // Kortast först inom varje fras; okänd längd sist.
   for (const lista of fraser.values()) lista.sort((a, b) => (langd[a.nr] ?? 1e9) - (langd[b.nr] ?? 1e9));
   // Rubriker: Fasta kommentarer, Böter, Skylten, 30-väg, 40-väg … (äldre klipp saknar grupp – gissas).
-  const gruppAv = (k) => k.grupp || (k.fras.includes('kronor i böter') ? 'Böter' : 'Fasta kommentarer');
-  const ordning = (g) => { const m = /^(\d+)-väg$/.exec(g); return m ? 100 + +m[1] : ({ 'Fasta kommentarer': 0, 'Böter': 1, 'Skylten': 2, 'Tätort': 3, 'Snäll': 4 }[g] ?? 99); };
+  const gruppAv = (k) => k.grupp || (k.fras.includes('kronor i böter') ? 'Böter' : k.fras.includes('CYKLA') ? 'Körkort' : k.fras.startsWith('Tack.') ? 'Tack' : 'Fasta kommentarer');
+  const ordning = (g) => { const m = /^(\d+)-väg$/.exec(g); return m ? 100 + +m[1] : ({ 'Fasta kommentarer': 0, 'Körkort': 1, 'Tack': 2, 'Böter': 3, 'Skylten': 4, 'Tätort': 5, 'Snäll': 6, 'Snäll skylten': 7, 'Snäll tätort': 8, 'Snäll körkort': 9, 'Snäll tack': 10 }[g] ?? 99); };
   const poster = [...fraser].map(([fras, lista]) => [fras, lista, gruppAv(lista[0])])
     .map((p, i) => [...p, i]).sort((a, b) => ordning(a[2]) - ordning(b[2]) || a[3] - b[3]);
   let forra = null;

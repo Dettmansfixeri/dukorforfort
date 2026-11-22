@@ -267,7 +267,7 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
         } else if (this.tooFast) {
             this.tooFast = false
             if (count > 0 && mode != HeckleMode.OFF) {
-                if (useClips) playClip(if (mode == HeckleMode.MEAN) ClipLines.THANKS else ClipLines.NICE_THANKS.random(), interrupt = true)
+                if (useClips) closingClip()?.let { playClip(it, interrupt = true) }
                 else say(closing(mode), interrupt = true)
             }
             count = 0
@@ -335,28 +335,25 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
         count++
     }
 
-    /** En slumpad kommentar som finns inspelad (inte samma som nyss), elak eller snäll. */
+    /**
+     * Kommentarer ur röstpaketet, valda efter gruppnamnet (så nya kommentarer bara kräver ett nytt röstpaket):
+     *   "Snäll …" = snäll nivå, annars elak · "tätort" = gräns 10–50 · "körkort" = vid körkortsgränsen
+     *   "tack" = när man saktat ner · "skylten" = bara frasen med rätt gräns
+     *   "Böter" och "NN-väg" sägs bara när de räknats ut (böterna / [ClipLines.facts]).
+     */
+    private fun groupPhrases(nice: Boolean, closing: Boolean, over: Int) =
+        ClipLines.fromGroups(VoicePack.groups, nice, closing, over, limit)
+
+    private fun closingClip(): String? = groupPhrases(mode == HeckleMode.NICE, closing = true, over = 1).randomOrNull()
+
+    /** En slumpad kommentar som finns inspelad (inte samma som nyss). Elak nivå får också uträknade fakta. */
     private fun comment(over: Int): String? {
-        val town = limit <= 50
-        val license = ClipLines.license(over, limit)
-        val all = buildList {
-            if (mode == HeckleMode.MEAN) {
-                add(ClipLines.signText(limit))
-                addAll(ClipLines.facts(over, limit))
-                addAll(ClipLines.INSULTS)
-                if (town) addAll(ClipLines.TOWN)
-                if (license) add(ClipLines.CYCLE)
-            } else {
-                add(ClipLines.niceSignText(limit))
-                addAll(ClipLines.NICE)
-                if (town) addAll(ClipLines.NICE_TOWN)
-                if (license) add(ClipLines.NICE_LICENSE)
-            }
-        }.filter { VoicePack.has(it) }
+        val all = groupPhrases(mode == HeckleMode.NICE, closing = false, over = over) +
+            (if (mode == HeckleMode.MEAN) ClipLines.facts(over, limit).filter { VoicePack.has(it) } else emptyList())
         val fresh = all.filter { it !in recent }.ifEmpty { all }
         val pick = fresh.randomOrNull() ?: return null
         recent.addLast(pick)
-        while (recent.size > 4) recent.removeFirst()
+        while (recent.size > 6) recent.removeFirst()
         return pick
     }
 

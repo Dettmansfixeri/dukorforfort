@@ -5,6 +5,7 @@
 8 | Jag är bara en app, MEN jag skäms ändå å dina vägnar.
 8 | Fortsätt så, så får du snart träffa polisen.
 8 | Tror du att skyltarna är förslag?
+## Tack
 8 | Tack. Var det så svårt?
 ## Skylten
 8 | Hallå? Skylten säger 10.
@@ -43,6 +44,7 @@
 8 | Jag tjatar bara för att jag bryr mig om dig.
 8 | Ta det lugnt, det är ingen tävling.
 8 | Släpp gasen lite, så slipper vi böter.
+## Snäll skylten @ Lugn, vänlig och omtänksam. Jämnt tempo.
 8 | Skylten säger 10, bara så du vet.
 8 | Skylten säger 20, bara så du vet.
 8 | Skylten säger 30, bara så du vet.
@@ -55,11 +57,14 @@
 8 | Skylten säger 100, bara så du vet.
 8 | Skylten säger 110, bara så du vet.
 8 | Skylten säger 120, bara så du vet.
+## Snäll tätort @ Lugn, vänlig och omtänksam. Jämnt tempo.
 8 | Här kan det finnas barn och cyklister. Ta det lugnt.
 8 | Lite lugnare här inne bland husen, tack.
+## Snäll körkort @ Lugn, vänlig och omtänksam. Jämnt tempo.
+8 | Nu är du nära att bli av med körkortet. Släpp gasen.
+## Snäll tack @ Lugn, vänlig och omtänksam. Jämnt tempo.
 8 | Tack, nu kör du lagligt igen.
 8 | Bra, så ska det se ut.
-8 | Nu är du nära att bli av med körkortet. Släpp gasen.
 ## 10-väg
 1 | Där du hade stannat i 10 kör du nu på i 8 kilometer i timmen.
 1 | Där du hade stannat i 10 kör du nu på i 12 kilometer i timmen.
