@@ -154,6 +154,30 @@ for (const fras of fraser) {
   }
 }
 
+// Längd (sekunder) på varje klipp, så lyssningssidan kan sortera och dölja för långa direkt.
+// Nya klipp mäts här; äldre utan längd hämtas från webbsidan och mäts (bara en gång).
+function langdAv(fil) {
+  const r = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', fil], { encoding: 'utf8' });
+  const s = parseFloat(r.stdout);
+  return r.status === 0 && isFinite(s) ? Math.round(s * 100) / 100 : null;
+}
+let matta = 0;
+for (const k of bib.klipp) {
+  if (typeof k.sek === 'number') continue;
+  let lokal = path.join(UT, k.fil);
+  if (!fs.existsSync(lokal)) {
+    if (process.env.LOKALT) continue;
+    const r = await fetch(SIDA + k.fil).catch(() => null);
+    if (!r || !r.ok) continue;
+    lokal = path.join(UT, 'tmp-' + path.basename(k.fil));
+    fs.writeFileSync(lokal, Buffer.from(await r.arrayBuffer()));
+  }
+  const s = langdAv(lokal);
+  if (lokal.includes('tmp-')) fs.rmSync(lokal);
+  if (s != null) { k.sek = s; matta++; }
+}
+console.log(`Mätte längden på ${matta} klipp.`);
+
 fs.writeFileSync(path.join(UT, 'bibliotek.json'), JSON.stringify(bib, null, 1));
 fs.copyFileSync(new URL('rostprov-sida.html', import.meta.url), path.join(UT, 'index.html'));
 console.log(`Klart. ${nya} nya klipp (totalt ${bib.klipp.length}), ${fel} fel.`);
