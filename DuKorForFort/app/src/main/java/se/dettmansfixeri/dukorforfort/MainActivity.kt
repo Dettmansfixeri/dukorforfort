@@ -256,14 +256,18 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Varna när jag kör", fontWeight = FontWeight.Bold)
                 Text(
-                    if (s.margin == 0) "så fort jag är över gränsen" else "mer än ${s.margin} km/h över gränsen",
+                    when {
+                        s.margin == 0 -> "så fort jag är över gränsen"
+                        s.margin > 0 -> "mer än ${s.margin} km/h över gränsen"
+                        else -> "mindre än ${-s.margin} km/h under gränsen (för att prova)"
+                    },
                     fontSize = 14.sp, color = Dim
                 )
                 Slider(
                     value = s.margin.toFloat(),
-                    onValueChange = { s = s.copy(margin = it.toInt()) },
-                    valueRange = 0f..SpeedTracker.MAX_MARGIN.toFloat(),
-                    steps = SpeedTracker.MAX_MARGIN - 1,
+                    onValueChange = { s = s.copy(margin = Math.round(it)) },
+                    valueRange = SpeedTracker.MIN_MARGIN.toFloat()..SpeedTracker.MAX_MARGIN.toFloat(),
+                    steps = SpeedTracker.MAX_MARGIN - SpeedTracker.MIN_MARGIN - 1,
                 )
                 SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
                 SwitchRow("Pip", null, s.beep) { s = s.copy(beep = it) }
@@ -526,7 +530,7 @@ fun SpeedScreen() {
         OutlinedButton(onClick = { showSettings = true }, modifier = Modifier.align(Alignment.TopStart)) {
             Text(
                 "⚙ " + settings.vehicle.label + (if (settings.trailer) " + släp" else "") +
-                        (if (settings.margin > 0) " · +${settings.margin} km/h" else ""),
+                        (if (settings.margin > 0) " · +${settings.margin} km/h" else if (settings.margin < 0) " · ${settings.margin} km/h" else ""),
                 color = Color.White
             )
         }

@@ -87,6 +87,8 @@ object SpeedTracker {
 
     private const val PREFS = "installningar"
     const val MAX_MARGIN = 10
+    /** Minusmarginal: varnar redan under gränsen (för att prova pip och vibration i lägre fart). */
+    const val MIN_MARGIN = -10
     const val AUTO_ARM_KMH = 20
     private const val MIN = 60_000L
 
@@ -162,7 +164,7 @@ object SpeedTracker {
         _settings.value = Settings(
             vehicle = Vehicle.fromName(p.getString("fordon", null)),
             trailer = p.getBoolean("slap", false),
-            margin = p.getInt("marginal", 0).coerceIn(0, MAX_MARGIN),
+            margin = p.getInt("marginal", 0).coerceIn(MIN_MARGIN, MAX_MARGIN),
             beep = p.getBoolean("pip", true),
             vibrate = p.getBoolean("vibrera", true),
             heckle = HeckleMode.fromName(p.getString("forolampning", null)),
