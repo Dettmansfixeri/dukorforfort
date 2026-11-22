@@ -26,6 +26,8 @@ audio{height:32px;width:220px}
 .val .rad{display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%}
 .val .felrad span{color:#e88}
 .tom{color:#888}
+.hord{color:#5c5;font-size:.8em;white-space:nowrap;min-width:5.5em}
+.k.lyssnad{border-left:4px solid #3a3}
 </style></head><body>
 <h1>Röstbibliotek</h1>
 <p class="info" id="info">Laddar…</p>
@@ -34,6 +36,8 @@ audio{height:32px;width:220px}
   <label>Modell <select id="fModell"><option value="">Alla</option></select></label>
   <label><input type="checkbox" id="fValda"> Bara valda</label>
   <label><input type="checkbox" id="fDoljFel"> Dölj de med fel</label>
+  <label><input type="checkbox" id="fOhorda"> Bara de jag inte lyssnat på</label>
+  <span class="info" id="antalHorda"></span>
 </div>
 <div id="lista"></div>
 <div class="val">
@@ -56,6 +60,8 @@ let valda = new Set();
 try { valda = new Set(JSON.parse(localStorage.getItem('rostval') || '[]')); } catch (e) {}
 let fel = new Set();   // klipp som låter fel (läser upp stilen, säger fel tal …)
 try { fel = new Set(JSON.parse(localStorage.getItem('rostfel') || '[]')); } catch (e) {}
+let hord = new Set();  // klipp man spelat upp (markeras automatiskt)
+try { hord = new Set(JSON.parse(localStorage.getItem('rosthord') || '[]')); } catch (e) {}
 let klipp = [];
 
 function spara() {
@@ -67,13 +73,16 @@ function spara() {
   const fl = [...fel].sort();
   $('felkoder').value = fl.join(', ');
   $('antalFel').textContent = fl.length + ' med fel';
+  try { localStorage.setItem('rosthord', JSON.stringify([...hord])); } catch (e) {}
+  const finns = klipp.filter((k) => hord.has(k.nr)).length;
+  $('antalHorda').textContent = `Lyssnat på ${finns} av ${klipp.length}`;
 }
 
 function rita() {
-  const r = $('fRost').value, m = $('fModell').value, bara = $('fValda').checked, dolj = $('fDoljFel').checked;
+  const r = $('fRost').value, m = $('fModell').value, bara = $('fValda').checked, dolj = $('fDoljFel').checked, ohorda = $('fOhorda').checked;
   const fraser = new Map();
   for (const k of klipp) {
-    if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr)) || (dolj && fel.has(k.nr))) continue;
+    if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr)) || (dolj && fel.has(k.nr)) || (ohorda && hord.has(k.nr))) continue;
     if (!fraser.has(k.fras)) fraser.set(k.fras, []);
     fraser.get(k.fras).push(k);
   }
@@ -81,12 +90,13 @@ function rita() {
   for (const [fras, lista] of fraser) {
     html += `<h2>${esc(fras)}</h2><div class="klipp">`;
     for (const k of lista) {
-      const v = valda.has(k.nr), f = fel.has(k.nr);
-      html += `<div class="k${v ? ' vald' : ''}${f ? ' fel' : ''}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
+      const v = valda.has(k.nr), f = fel.has(k.nr), h = hord.has(k.nr);
+      html += `<div class="k${v ? ' vald' : ''}${f ? ' fel' : ''}${h ? ' lyssnad' : ''}" data-k="${esc(k.nr)}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
         <label><input type="checkbox" data-nr="${esc(k.nr)}"${v ? ' checked' : ''}>
         <span class="nr">${esc(k.nr)}</span>
         <span>${esc(k.rost)}<br><span class="om">${esc(k.modell)} · ${esc(k.skapad)}</span></span></label>
         <audio controls preload="none" src="${esc(k.fil)}"></audio>
+        <span class="hord">${h ? '✓ lyssnad' : ''}</span>
         <label class="flagga" title="Något är fel: läser upp stilen, säger fel tal …"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>fel</label></div>`;
     }
     html += '</div>';
@@ -111,8 +121,16 @@ $('lista').addEventListener('change', (e) => {
 // Bara ett klipp spelas åt gången.
 document.addEventListener('play', (e) => {
   document.querySelectorAll('audio').forEach((a) => { if (a !== e.target) a.pause(); });
+  // Markera klippet som lyssnat så fort det spelas upp.
+  const kort = e.target.closest && e.target.closest('.k');
+  if (kort && !hord.has(kort.dataset.k)) {
+    hord.add(kort.dataset.k);
+    kort.classList.add('lyssnad');
+    kort.querySelector('.hord').textContent = '✓ lyssnad';
+    spara();
+  }
 }, true);
-for (const id of ['fRost', 'fModell', 'fValda', 'fDoljFel']) $(id).addEventListener('change', rita);
+for (const id of ['fRost', 'fModell', 'fValda', 'fDoljFel', 'fOhorda']) $(id).addEventListener('change', rita);
 function kopiera(knapp, ruta) {
   $(knapp).addEventListener('click', async () => {
     const t = $(ruta).value;
