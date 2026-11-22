@@ -30,6 +30,7 @@ audio{height:32px;width:220px}
 .k.lyssnad{border-left:4px solid #3a3}
 .langd{font-variant-numeric:tabular-nums;font-size:.95em;min-width:3.6em;text-align:right;color:#ccc}
 .langd.lang{color:#ff9800;font-weight:700}
+h1.grupp{font-size:1.5em;margin:1.6em 0 .2em;padding:6px 10px;background:#ffcc00;color:#111;border-radius:6px}
 </style></head><body>
 <h1>Röstbibliotek</h1>
 <p class="info" id="info">Laddar…</p>
@@ -124,7 +125,14 @@ function rita() {
   let html = '';
   // Kortast först inom varje fras; okänd längd sist.
   for (const lista of fraser.values()) lista.sort((a, b) => (langd[a.nr] ?? 1e9) - (langd[b.nr] ?? 1e9));
-  for (const [fras, lista] of fraser) {
+  // Rubriker: Fasta kommentarer, Böter, Skylten, 30-väg, 40-väg … (äldre klipp saknar grupp – gissas).
+  const gruppAv = (k) => k.grupp || (k.fras.includes('kronor i böter') ? 'Böter' : 'Fasta kommentarer');
+  const ordning = (g) => { const m = /^(\d+)-väg$/.exec(g); return m ? 100 + +m[1] : ({ 'Fasta kommentarer': 0, 'Böter': 1, 'Skylten': 2 }[g] ?? 99); };
+  const poster = [...fraser].map(([fras, lista]) => [fras, lista, gruppAv(lista[0])])
+    .map((p, i) => [...p, i]).sort((a, b) => ordning(a[2]) - ordning(b[2]) || a[3] - b[3]);
+  let forra = null;
+  for (const [fras, lista, grupp] of poster) {
+    if (grupp !== forra) { html += `<h1 class="grupp">${esc(grupp)}</h1>`; forra = grupp; }
     html += `<h2>${esc(fras)}</h2><div class="klipp">`;
     for (const k of lista) {
       const v = valda.has(k.nr), f = fel.has(k.nr), h = hord.has(k.nr);

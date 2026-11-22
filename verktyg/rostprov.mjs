@@ -134,15 +134,17 @@ async function tala(text, rost, modell) {
 const jobb = [];
 const FRASLISTA = (process.env.FRASLISTA || '').trim();
 if (FRASLISTA && modeller.length) {
-  const rader = fs.readFileSync(FRASLISTA, 'utf8').split('\n').map((r) => r.trim()).filter((r) => r && !r.startsWith('#'));
+  const rader = fs.readFileSync(FRASLISTA, 'utf8').split('\n').map((r) => r.trim()).filter((r) => r && (!r.startsWith('#') || r.startsWith('##')));
   let tur = 0;
+  let grupp = '';
   for (const rad of rader) {
+    if (rad.startsWith('##')) { grupp = rad.replace(/^#+\s*/, ''); continue; }
     const m = /^(\d+)\s*\|\s*(.+)$/.exec(rad);
     const antal = m ? Math.min(+m[1], roster.length) : roster.length;
     const fras = m ? m[2] : rad;
     for (let i = 0; i < antal; i++) {
       const rost = roster[tur++ % roster.length];
-      for (const modell of modeller) for (let t = 1; t <= tagningar; t++) jobb.push({ fras, rost, modell, t });
+      for (const modell of modeller) for (let t = 1; t <= tagningar; t++) jobb.push({ fras, rost, modell, t, grupp });
     }
   }
 } else {
@@ -169,7 +171,7 @@ await Promise.all(Array.from({ length: PARALLELLT }, async () => {
 let fel = 0;
 let nya = 0;
 for (let i = 0; i < jobb.length; i++) {
-  const { fras, rost, modell, t } = jobb[i];
+  const { fras, rost, modell, t, grupp } = jobb[i];
   const ljud = ljuden[i];
   if (!ljud || ljud.fel) { fel++; console.log('FEL', rost, modell, t, fras.slice(0, 40), ljud && ljud.fel); continue; }
   while (await finnsPaServern(nummer(bib.nasta))) bib.nasta++;
@@ -178,7 +180,8 @@ for (let i = 0; i < jobb.length; i++) {
   fs.writeFileSync(path.join(UT, fil), ljud.data);
   bib.nasta++; // numret är förbrukat nu, även om klippet skulle tas bort senare
   bib.klipp.push({ nr, fil, fras, rost, modell: MODELL[modell].namn, tagning: t,
-    stil: MODELL[modell].gemini ? stil : '', tempo: MODELL[modell].gemini ? null : tempo, skapad: korning });
+    stil: MODELL[modell].gemini ? stil : '', tempo: MODELL[modell].gemini ? null : tempo, skapad: korning,
+    ...(grupp ? { grupp } : {}) });
   nya++;
   console.log('ok ', nr, rost, modell, t);
 }
