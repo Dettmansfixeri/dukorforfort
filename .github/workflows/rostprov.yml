@@ -18,6 +18,7 @@ on:
     branches: [main]
     paths:
       - verktyg/rostprov-sida.html
+      - verktyg/rostprov-godkanda.html
       - verktyg/rostbort.txt
       - verktyg/rostval.txt
       - verktyg/rostgorom.txt
@@ -119,6 +120,7 @@ jobs:
             mkdir -pf rostprov/ljud;
             mirror --reverse ./ut/ljud/ ./rostprov/ljud/;
             put ./ut/index.html -o rostprov/index.html;
+            put ./ut/godkanda.html -o rostprov/godkanda.html;
             put ./ut/rostpaket.zip -o rostprov/rostpaket.zip;
             put ./ut/rostpaket.json -o rostprov/rostpaket.json;
             put ./ut/bibliotek.json -o rostprov/bibliotek.json

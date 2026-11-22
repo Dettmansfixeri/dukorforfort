@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="sv"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Godkända röster</title>
+<style>
+:root{--bg:#111;--fg:#eee;--dim:#999;--gul:#ffcc00;--kort:#1b1b1b;--kant:#2c2c2c}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;margin:0;padding:16px;max-width:1100px}
+h1{font-size:1.5em;margin:0 0 4px}
+.info{color:var(--dim);font-size:.9em;margin:0 0 8px}
+nav{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px;position:sticky;top:0;background:var(--bg);padding:8px 0;z-index:1}
+nav a{color:#111;background:var(--gul);text-decoration:none;padding:4px 10px;border-radius:14px;font-size:.85em;font-weight:600}
+h2.grupp{font-size:1.3em;margin:1.6em 0 .3em;padding:6px 10px;background:var(--gul);color:#111;border-radius:6px;scroll-margin-top:60px}
+h3{font-size:1em;font-weight:600;margin:1.1em 0 .4em}
+h3 .nar{color:var(--dim);font-weight:400;font-size:.85em}
+.klipp{display:flex;flex-wrap:wrap;gap:8px}
+.k{display:flex;align-items:center;gap:8px;background:var(--kort);border:1px solid var(--kant);border-radius:8px;padding:6px 10px;max-width:100%;box-sizing:border-box}
+.rost{min-width:6.5em}
+.rost small{display:block;color:var(--dim);font-size:.75em}
+audio{height:32px;width:220px;max-width:60vw}
+</style></head><body>
+<h1>Godkända röster</h1>
+<p class="info" id="info">Laddar…</p>
+<nav id="nav"></nav>
+<div id="lista"></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Grupper i ordning: fasta kommentarer, böter (lägst belopp först), skylten, sedan vägarna 10 → 120.
+const gruppAv = (k) => k.grupp || (k.fras.includes('kronor i böter') ? 'Böter' : 'Fasta kommentarer');
+const gruppOrdning = (g) => { const m = /^(\d+)-väg$/.exec(g); return m ? 100 + +m[1] : ({ 'Fasta kommentarer': 0, 'Böter': 1, 'Skylten': 2 }[g] ?? 99); };
+const BELOPP = { 'ett tusen femhundra': 1500, 'två tusen': 2000, 'två tusen fyrahundra': 2400, 'två tusen åttahundra': 2800,
+  'tre tusen tvåhundra': 3200, 'tre tusen sexhundra': 3600, 'fyra tusen': 4000 };
+const belopp = (f) => { const m = /kostar dig (.+?) kronor/.exec(f); return m ? (BELOPP[m[1]] || 0) : 0; };
+const tal = (f) => { const m = /\d+/.exec(f); return m ? +m[0] : 0; };
+const TYP = ['Där du hade stannat', 'Du sparar', 'Din stoppsträcka', 'Nu har du ökat luftmotståndet'];
+const typ = (f) => { const i = TYP.findIndex((t) => f.startsWith(t)); return i < 0 ? 9 : i; };
+const FASTA = ['Du kör för fort, IDIOT!', 'Är gaspedalen fastlimmad, eller?', 'Tror du att skyltarna är förslag?',
+  'Grattis. Du är officiellt en fartdåre.', 'Jag är bara en app, MEN jag skäms ändå å dina vägnar.',
+  'Fortsätt så, så får du snart träffa polisen.', 'Utmärkt! Fortkörning kan leda till bättre hälsa… DÅ DU MÅSTE CYKLA!', 'Tack. Var det så svårt?'];
+
+/** Sorteringsnyckel för en fras inom sin grupp. */
+function frasOrdning(g, f) {
+  if (g === 'Böter') return [f.includes('busskort') ? 1 : 0, belopp(f)];
+  if (g === 'Skylten') return [tal(f), 0];
+  if (g === 'Fasta kommentarer') { const i = FASTA.indexOf(f); return [i < 0 ? 99 : i, 0]; }
+  return [typ(f), tal(f.replace(/^Där du hade stannat i \d+/, ''))];   // vägarna: per sorts fakta, sedan siffran
+}
+const nar = (g, f) => g !== 'Böter' ? '' : (f.includes('busskort') ? 'körkortet ryker' : '');
+
+fetch('bibliotek.json', { cache: 'no-store' }).then((r) => r.json()).then((b) => {
+  const klipp = b.klipp.filter((k) => k.godkand && !k.ersatt && !k.bort);
+  const grupper = new Map();
+  for (const k of klipp) {
+    const g = gruppAv(k);
+    if (!grupper.has(g)) grupper.set(g, new Map());
+    const fr = grupper.get(g);
+    if (!fr.has(k.fras)) fr.set(k.fras, []);
+    fr.get(k.fras).push(k);
+  }
+  const ordnade = [...grupper].sort((a, b) => gruppOrdning(a[0]) - gruppOrdning(b[0]));
+  let html = '', nav = '';
+  ordnade.forEach(([g, fraser], i) => {
+    const id = 'g' + i;
+    const antal = [...fraser.values()].reduce((s, l) => s + l.length, 0);
+    nav += `<a href="#${id}">${esc(g)}</a>`;
+    html += `<h2 class="grupp" id="${id}">${esc(g)} <small>(${antal})</small></h2>`;
+    const lista = [...fraser].sort((a, b) => { const x = frasOrdning(g, a[0]), y = frasOrdning(g, b[0]); return x[0] - y[0] || x[1] - y[1]; });
+    for (const [fras, kl] of lista) {
+      const n = nar(g, fras);
+      html += `<h3>${esc(fras)}${n ? ` <span class="nar">– ${esc(n)}</span>` : ''}</h3><div class="klipp">`;
+      kl.sort((a, b) => a.rost.localeCompare(b.rost, 'sv'));
+      for (const k of kl) html += `<div class="k"><span class="rost">${esc(k.rost)}<small>${esc(k.nr)}</small></span><audio controls preload="none" src="${esc(k.fil)}"></audio></div>`;
+      html += '</div>';
+    }
+  });
+  $('nav').innerHTML = nav;
+  $('lista').innerHTML = html || '<p class="info">Inga godkända klipp än.</p>';
+  $('info').textContent = `${klipp.length} godkända klipp i ${[...grupper.values()].reduce((s, f) => s + f.size, 0)} fraser.`;
+}).catch(() => { $('info').textContent = 'Kunde inte läsa bibliotek.json.'; });
+
+// Bara ett klipp åt gången.
+document.addEventListener('play', (e) => document.querySelectorAll('audio').forEach((a) => { if (a !== e.target) a.pause(); }), true);
+</script>
+</body></html>
