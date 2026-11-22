@@ -500,6 +500,7 @@ fun SpeedScreen() {
     @Composable
     fun StatusBlock() {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            MarginWarning(settings.margin)
             Text(
                 if (!hasPermission) "Appen behöver platsbehörighet" else state.status,
                 fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f), textAlign = TextAlign.Center
@@ -574,4 +575,18 @@ fun SpeedScreen() {
             onDismiss = { showSettings = false },
         )
     }
+}
+
+/** Gul varningsruta på framsidan när marginalen inte står på 0, så man inte glömmer att ställa tillbaka den. */
+@Composable
+private fun MarginWarning(margin: Int) {
+    if (margin == 0) return
+    Text(
+        if (margin < 0) "⚠ Marginal ${margin} km/h – varnar redan under gränsen"
+        else "⚠ Marginal +${margin} km/h – varnar först mer än ${margin} km/h över",
+        fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.Black, textAlign = TextAlign.Center,
+        modifier = Modifier.padding(bottom = 12.dp)
+            .background(Color(0xFFFFCC00), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    )
 }
