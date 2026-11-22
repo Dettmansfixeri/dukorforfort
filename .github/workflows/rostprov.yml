@@ -20,6 +20,7 @@ on:
       - verktyg/rostprov-sida.html
       - verktyg/rostbort.txt
       - verktyg/rostval.txt
+      - verktyg/rostgorom.txt
       - verktyg/rostprov.mjs
       - .github/workflows/rostprov.yml
   workflow_dispatch:
@@ -118,6 +119,8 @@ jobs:
             mkdir -pf rostprov/ljud;
             mirror --reverse ./ut/ljud/ ./rostprov/ljud/;
             put ./ut/index.html -o rostprov/index.html;
+            put ./ut/rostpaket.zip -o rostprov/rostpaket.zip;
+            put ./ut/rostpaket.json -o rostprov/rostpaket.json;
             put ./ut/bibliotek.json -o rostprov/bibliotek.json
           "
           echo "Lyssna: https://dukorforfort.dettmansfixeri.se/rostprov/" >> "$GITHUB_STEP_SUMMARY"

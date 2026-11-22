@@ -253,6 +253,40 @@ for (const k of bib.klipp) { if (godkanda.has(k.nr)) k.godkand = true; else dele
 console.log(`${godkanda.size} klipp godkända.`);
 
 fs.writeFileSync(path.join(UT, 'bibliotek.json'), JSON.stringify(bib, null, 1));
+
+// Röstpaket till appen: de godkända klippen som Opus 32 kbit/s (WebM, spelas av Android 5+)
+// i en zip med manifest.json. Appen laddar ner rostpaket.zip när rostpaket.json säger ny version.
+if (!process.env.LOKALT) {
+  const PAKET = path.join(UT, 'paket');
+  fs.mkdirSync(PAKET, { recursive: true });
+  const manifest = { version: new Date().toISOString(), klipp: [] };
+  for (const k of bib.klipp.filter((x) => x.godkand && !x.ersatt)) {
+    let kalla = path.join(UT, k.fil);
+    let tmp = false;
+    if (!fs.existsSync(kalla)) {
+      const r = await fetch(SIDA + k.fil).catch(() => null);
+      if (!r || !r.ok) { console.log('Röstpaket: kunde inte hämta', k.nr); continue; }
+      kalla = path.join(UT, 'tmp-' + path.basename(k.fil));
+      fs.writeFileSync(kalla, Buffer.from(await r.arrayBuffer()));
+      tmp = true;
+    }
+    const fil = `${k.nr}.webm`;
+    const r = spawnSync('ffmpeg', ['-v', 'error', '-y', '-i', kalla, '-ac', '1', '-c:a', 'libopus', '-b:a', '32k',
+      '-application', 'voip', '-f', 'webm', path.join(PAKET, fil)]);
+    if (tmp) fs.rmSync(kalla);
+    if (r.status !== 0) { console.log('Röstpaket: ffmpeg misslyckades', k.nr, String(r.stderr).slice(0, 200)); continue; }
+    manifest.klipp.push({ nr: k.nr, fil, fras: k.fras, rost: k.rost, grupp: k.grupp || '' });
+  }
+  fs.writeFileSync(path.join(PAKET, 'manifest.json'), JSON.stringify(manifest));
+  fs.rmSync(path.join(UT, 'rostpaket.zip'), { force: true });
+  const z = spawnSync('zip', ['-q', '-r', '../rostpaket.zip', '.'], { cwd: PAKET });
+  if (z.status === 0) {
+    const size = fs.statSync(path.join(UT, 'rostpaket.zip')).size;
+    fs.writeFileSync(path.join(UT, 'rostpaket.json'), JSON.stringify({ version: manifest.version, size, antal: manifest.klipp.length }));
+    console.log(`Röstpaket: ${manifest.klipp.length} klipp, ${Math.round(size / 1024)} kB.`);
+  } else console.log('Röstpaket: zip misslyckades');
+  fs.rmSync(PAKET, { recursive: true, force: true });
+}
 fs.copyFileSync(new URL('rostprov-sida.html', import.meta.url), path.join(UT, 'index.html'));
 console.log(`Klart. ${nya} nya klipp (totalt ${bib.klipp.length}), ${fel} fel.`);
 // Inga modeller valda = bara uppdatera lyssningssidan. Annars är det fel om inget klipp blev av.
