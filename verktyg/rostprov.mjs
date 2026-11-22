@@ -245,6 +245,18 @@ const bort = new Set(fs.existsSync(bortFil) ? fs.readFileSync(bortFil, 'utf8').s
 for (const k of bib.klipp) { if (bort.has(k.nr)) k.bort = true; else delete k.bort; }
 console.log(`${bort.size} klipp markerade som borttagna.`);
 
+// Grupp (rubrik på sidan) efter nuvarande fraslista, ifall en fras flyttat till en annan väg.
+const listFil = new URL('fraser-nya.txt', import.meta.url);
+if (fs.existsSync(listFil)) {
+  const gruppFor = new Map();
+  let g = '';
+  for (const rad of fs.readFileSync(listFil, 'utf8').split('\n').map((r) => r.trim())) {
+    if (rad.startsWith('##')) g = rad.replace(/^#+\s*/, '');
+    else if (/^\d+\s*\|/.test(rad)) gruppFor.set(rad.replace(/^\d+\s*\|\s*/, ''), g);
+  }
+  for (const k of bib.klipp) if (k.grupp && gruppFor.has(k.fras)) k.grupp = gruppFor.get(k.fras);
+}
+
 // Godkända klipp (verktyg/rostval.txt) är redan klara – sidan visar dem bara om man vill.
 const valFil = new URL('rostval.txt', import.meta.url);
 const godkanda = new Set(fs.existsSync(valFil) ? fs.readFileSync(valFil, 'utf8').split('\n')
