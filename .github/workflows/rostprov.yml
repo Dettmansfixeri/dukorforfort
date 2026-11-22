@@ -20,10 +20,10 @@ on:
       modeller:
         description: "Modeller: chirp, gemini-flash, gemini-pro (tomt = inga nya klipp, bara uppdatera sidan)"
         required: false
-        default: "gemini-flash,gemini-pro"
+        default: "gemini-pro"
       fraser:
         description: "Fraser (| emellan)"
-        default: "Du kör för fort, IDIOT!|Det här kostar dig två tusen fyrahundra kronor i böter. Plus busskort i minst två månader.|Utmärkt! Fortkörning kan leda till bättre hälsa… DÅ DU MÅSTE CYKLA!"
+        default: "Det här kostar dig ett tusen femhundra kronor i böter.|Det här kostar dig två tusen kronor i böter.|Det här kostar dig två tusen fyrahundra kronor i böter.|Det här kostar dig två tusen åttahundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter.|Det här kostar dig tre tusen sexhundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig tre tusen sexhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig fyra tusen kronor i böter. Plus busskort i minst två månader."
       stil:
         description: "Stilinstruktion (bara Gemini)"
         default: "Jämnt och ganska snabbt tempo hela meningen. Torr, irriterad och lite sarkastisk. Uttala kör som i att köra bil."
@@ -39,7 +39,7 @@ concurrency: rostprov
 jobs:
   prov:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
