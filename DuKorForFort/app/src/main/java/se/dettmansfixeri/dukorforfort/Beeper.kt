@@ -8,12 +8,13 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * Spelar varningspipet som en slinga på en sekund, tätare och ljusare ju mer för fort man kör.
+ * Spelar varningspipet som en slinga på en sekund, tätare ju mer för fort man kör.
+ * Tonen stiger ett halvtonsteg för varje km/h över (660 Hz vid 1 km/h, en oktav högre vid 13).
  *
  *   1–2 km/h över  → ett pip i sekunden
  *   3–4            → två pip i sekunden
- *   5–7            → tre pip i sekunden, ljusare
- *   8–10           → fyra pip i sekunden, ännu ljusare
+ *   5–7            → tre pip i sekunden
+ *   8–10           → fyra pip i sekunden
  *   11–15          → tickande larm
  *   16–30          → snabbare tickande larm
  *   31+            → siren utan paus (körkortsgränsen)
@@ -27,14 +28,21 @@ class Beeper {
         private const val RATE = 22050
         private val SIREN = Pattern(0, 0.0, 0, "siren utan paus")
 
+        /** Lägsta tonen (1 km/h över). Tonen stiger ett halvtonsteg för varje km/h, upp till [TOP_OVER]. */
+        private const val BASE_HZ = 660.0
+        private const val TOP_OVER = 24
+
+        /** Tonhöjd för [over] km/h över: ett halvtonsteg högre för varje km/h (660 Hz → 2640 Hz vid 25+). */
+        fun hz(over: Int): Double = BASE_HZ * Math.pow(2.0, (over.coerceIn(1, TOP_OVER + 1) - 1) / 12.0)
+
         fun pattern(over: Int): Pattern? = when {
             over <= 0 -> null
-            over <= 2 -> Pattern(1, 880.0, 140, "ett pip i sekunden")
-            over <= 4 -> Pattern(2, 880.0, 120, "två pip i sekunden")
-            over <= 7 -> Pattern(3, 1175.0, 100, "tre pip i sekunden, ljusare")
-            over <= 10 -> Pattern(4, 1397.0, 90, "fyra pip i sekunden, ännu ljusare")
-            over <= 15 -> Pattern(8, 1760.0, 35, "tickande larm")
-            over <= 30 -> Pattern(12, 1760.0, 28, "snabbare tickande larm")
+            over <= 2 -> Pattern(1, hz(over), 140, "ett pip i sekunden")
+            over <= 4 -> Pattern(2, hz(over), 120, "två pip i sekunden")
+            over <= 7 -> Pattern(3, hz(over), 100, "tre pip i sekunden")
+            over <= 10 -> Pattern(4, hz(over), 90, "fyra pip i sekunden")
+            over <= 15 -> Pattern(8, hz(over), 35, "tickande larm")
+            over <= 30 -> Pattern(12, hz(over), 28, "snabbare tickande larm")
             else -> SIREN
         }
 

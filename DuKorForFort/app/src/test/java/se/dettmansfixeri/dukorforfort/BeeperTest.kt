@@ -21,9 +21,11 @@ class BeeperTest {
         assertEquals(12, Beeper.pattern(16)!!.count)
         assertEquals(12, Beeper.pattern(30)!!.count)
         assertEquals(0, Beeper.pattern(31)!!.count)   // siren
-        // Ljusare ju mer över
-        assertTrue(Beeper.pattern(5)!!.hz > Beeper.pattern(4)!!.hz)
-        assertTrue(Beeper.pattern(8)!!.hz > Beeper.pattern(7)!!.hz)
+        // Ett halvtonsteg högre för varje km/h över
+        for (o in 1..24) assertEquals(Math.pow(2.0, 1 / 12.0), Beeper.pattern(o + 1)!!.hz / Beeper.pattern(o)!!.hz, 1e-9)
+        assertEquals(660.0, Beeper.pattern(1)!!.hz, 1e-9)
+        assertEquals(1320.0, Beeper.pattern(13)!!.hz, 1e-9)
+        assertEquals(Beeper.pattern(25)!!.hz, Beeper.pattern(30)!!.hz, 1e-9)   // taket
     }
 
     @Test fun ljudetGarAttSkapa() {
