@@ -178,6 +178,13 @@ for (const k of bib.klipp) {
 }
 console.log(`Mätte längden på ${matta} klipp.`);
 
+// Klipp som inte ska användas (verktyg/rostbort.txt) döljs på sidan. Filerna och numren ligger kvar.
+const bortFil = new URL('rostbort.txt', import.meta.url);
+const bort = new Set(fs.existsSync(bortFil) ? fs.readFileSync(bortFil, 'utf8').split('\n')
+  .filter((l) => !l.startsWith('#')).join(',').split(',').map((s) => s.trim()).filter(Boolean) : []);
+for (const k of bib.klipp) { if (bort.has(k.nr)) k.bort = true; else delete k.bort; }
+console.log(`${bort.size} klipp markerade som borttagna.`);
+
 fs.writeFileSync(path.join(UT, 'bibliotek.json'), JSON.stringify(bib, null, 1));
 fs.copyFileSync(new URL('rostprov-sida.html', import.meta.url), path.join(UT, 'index.html'));
 console.log(`Klart. ${nya} nya klipp (totalt ${bib.klipp.length}), ${fel} fel.`);

@@ -40,6 +40,7 @@ audio{height:32px;width:220px}
   <label><input type="checkbox" id="fDoljFel"> Dölj de med fel</label>
   <label><input type="checkbox" id="fOhorda"> Bara de jag inte lyssnat på</label>
   <label><input type="checkbox" id="fLangst"> Visa även för långa <span id="antalLanga"></span></label>
+  <label><input type="checkbox" id="fBort"> Visa borttagna <span id="antalBort"></span></label>
   <span class="info">Kortast först. För långa klipp (mycket längre än de andra med samma fras – läser oftast upp stilen) är dolda.
     Visas de är tiden <span style="color:#ff9800;font-weight:700">orange</span>.</span>
   <span class="info" id="antalHorda"></span>
@@ -80,7 +81,7 @@ function arLangt(k) {
   const andra = klipp.filter((o) => o.fras === k.fras && langd[o.nr] != null).map((o) => langd[o.nr]).sort((a, b) => a - b);
   if (andra.length < 4) return false;
   const median = andra[Math.floor(andra.length / 2)];
-  return s > median * 1.3 && s > median + 1.0;
+  return s > median * 1.45 && s > median + 2.0;
 }
 function visaLangd(fras) {
   document.querySelectorAll('.langd').forEach((el) => {
@@ -111,13 +112,15 @@ function rita() {
   const fraser = new Map();
   let doldaLanga = 0;
   for (const k of klipp) {
+    if (k.bort && !$('fBort').checked) continue;   // borttagna (verktyg/rostbort.txt)
     if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr)) || (dolj && fel.has(k.nr)) || (ohorda && hord.has(k.nr))) continue;
     // För långa klipp döljs (utom valda, så man inte tappar bort något man kryssat i).
     if (!visaLanga && arLangt(k) && !valda.has(k.nr)) { doldaLanga++; continue; }
     if (!fraser.has(k.fras)) fraser.set(k.fras, []);
     fraser.get(k.fras).push(k);
   }
-  $('antalLanga').textContent = `(${klipp.filter(arLangt).length} st)`;
+  $('antalLanga').textContent = `(${klipp.filter((k) => !k.bort && arLangt(k)).length} st)`;
+  $('antalBort').textContent = `(${klipp.filter((k) => k.bort).length} st)`;
   let html = '';
   // Kortast först inom varje fras; okänd längd sist.
   for (const lista of fraser.values()) lista.sort((a, b) => (langd[a.nr] ?? 1e9) - (langd[b.nr] ?? 1e9));
@@ -185,7 +188,7 @@ document.addEventListener('loadedmetadata', (e) => {
   clearTimeout(sparaLangd);
   sparaLangd = setTimeout(() => { try { localStorage.setItem('rostlangd', JSON.stringify(langd)); } catch (err) {} }, 500);
 }, true);
-for (const id of ['fRost', 'fModell', 'fValda', 'fDoljFel', 'fOhorda', 'fLangst']) $(id).addEventListener('change', rita);
+for (const id of ['fRost', 'fModell', 'fValda', 'fDoljFel', 'fOhorda', 'fLangst', 'fBort']) $(id).addEventListener('change', rita);
 function kopiera(knapp, ruta) {
   $(knapp).addEventListener('click', async () => {
     const t = $(ruta).value;
