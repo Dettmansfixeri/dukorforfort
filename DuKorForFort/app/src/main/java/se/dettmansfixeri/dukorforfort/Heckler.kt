@@ -98,7 +98,7 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
             "Hallå? Skylten säger {L}.",
             "Är gaspedalen fastlimmad, eller?",
             "Grattis. Du är officiellt en fartdåre.",
-            "Jag är bara en app, och jag skäms ändå å dina vägnar.",
+            "Jag är bara en app, MEN jag skäms ändå å dina vägnar.",
             "Fortsätt så, så får du snart träffa polisen.",
             "Tror du att skyltarna är förslag?",
         )
