@@ -29,6 +29,8 @@ class ClipLinesTest {
         for (limit in ClipLines.LIMITS) assertTrue(ClipLines.signText(limit) in finns)
         for (f in ClipLines.INSULTS.drop(1)) assertTrue("saknas: $f", f in finns)
         assertTrue(ClipLines.THANKS in finns)
+        for (f in ClipLines.TOWN + ClipLines.NICE + ClipLines.NICE_TOWN + ClipLines.NICE_THANKS + ClipLines.NICE_LICENSE) assertTrue("saknas: $f", f in finns)
+        for (limit in ClipLines.LIMITS) assertTrue(ClipLines.niceSignText(limit) in finns)
     }
 
     @Test fun boter() {

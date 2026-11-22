@@ -147,7 +147,7 @@ function rita() {
   for (const lista of fraser.values()) lista.sort((a, b) => (langd[a.nr] ?? 1e9) - (langd[b.nr] ?? 1e9));
   // Rubriker: Fasta kommentarer, Böter, Skylten, 30-väg, 40-väg … (äldre klipp saknar grupp – gissas).
   const gruppAv = (k) => k.grupp || (k.fras.includes('kronor i böter') ? 'Böter' : 'Fasta kommentarer');
-  const ordning = (g) => { const m = /^(\d+)-väg$/.exec(g); return m ? 100 + +m[1] : ({ 'Fasta kommentarer': 0, 'Böter': 1, 'Skylten': 2 }[g] ?? 99); };
+  const ordning = (g) => { const m = /^(\d+)-väg$/.exec(g); return m ? 100 + +m[1] : ({ 'Fasta kommentarer': 0, 'Böter': 1, 'Skylten': 2, 'Tätort': 3, 'Snäll': 4 }[g] ?? 99); };
   const poster = [...fraser].map(([fras, lista]) => [fras, lista, gruppAv(lista[0])])
     .map((p, i) => [...p, i]).sort((a, b) => ordning(a[2]) - ordning(b[2]) || a[3] - b[3]);
   let forra = null;

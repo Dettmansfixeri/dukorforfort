@@ -23,7 +23,8 @@ const lista = (s) => (s || '').split(/[,|]/).map((x) => x.trim()).filter(Boolean
 const roster = lista(process.env.ROSTER);
 const modeller = lista(process.env.MODELLER);
 const fraser = (process.env.FRASER || '').split('|').map((x) => x.trim()).filter(Boolean);
-const stil = (process.env.STIL || '').trim();
+const STIL_STANDARD = (process.env.STIL || '').trim();
+const stil = STIL_STANDARD;
 const tagningar = Math.max(1, Math.min(5, parseInt(process.env.TAGNINGAR || '1', 10) || 1));
 const tempo = Math.max(0.5, Math.min(2, parseFloat(process.env.TEMPO || '1') || 1));
 
@@ -71,7 +72,7 @@ function pcmTillLjud(pcm, rate) {
   return { data: Buffer.concat([h, pcm]), ext: 'wav' };
 }
 
-async function tala(text, rost, modell) {
+async function tala(text, rost, modell, stil = STIL_STANDARD) {
   const m = MODELL[modell];
   if (process.env.LOKALT) {
     const pcm = Buffer.alloc(24000);
@@ -141,26 +142,33 @@ if (GOR_OM.length) {
     const k = bib.klipp.find((x) => x.nr === nr);
     if (!k) { console.log('Finns inte:', nr); continue; }
     const modell = Object.keys(MODELL).find((m) => MODELL[m].namn === k.modell) || 'gemini-pro';
-    jobb.push({ fras: k.fras, rost: k.rost, modell, t: (k.tagning || 1) + 1, grupp: k.grupp || '', ersatter: nr });
+    jobb.push({ fras: k.fras, rost: k.rost, modell, t: (k.tagning || 1) + 1, grupp: k.grupp || '', ersatter: nr, stil: k.stil || STIL_STANDARD });
   }
-} else if (FRASLISTA && modeller.length) {
+}
+if (FRASLISTA && modeller.length) {
   const rader = fs.readFileSync(FRASLISTA, 'utf8').split('\n').map((r) => r.trim()).filter((r) => r && (!r.startsWith('#') || r.startsWith('##')));
   let tur = 0;
   let grupp = '';
+  let gruppStil = STIL_STANDARD;
   // GRUPPER = bara de här grupperna ur listan (tomt = alla), t.ex. "Skylten, 30-väg".
   const bara = (process.env.GRUPPER || '').split(',').map((g) => g.trim().toLowerCase()).filter(Boolean);
   for (const rad of rader) {
-    if (rad.startsWith('##')) { grupp = rad.replace(/^#+\s*/, ''); continue; }
+    if (rad.startsWith('##')) {
+      const [namn, egen] = rad.replace(/^#+\s*/, '').split(' @ ');
+      grupp = namn.trim();
+      gruppStil = egen ? egen.trim() : STIL_STANDARD;
+      continue;
+    }
     if (bara.length && !bara.includes(grupp.toLowerCase())) continue;
     const m = /^(\d+)\s*\|\s*(.+)$/.exec(rad);
     const antal = m ? Math.min(+m[1], roster.length) : roster.length;
     const fras = m ? m[2] : rad;
     for (let i = 0; i < antal; i++) {
       const rost = roster[tur++ % roster.length];
-      for (const modell of modeller) for (let t = 1; t <= tagningar; t++) jobb.push({ fras, rost, modell, t, grupp });
+      for (const modell of modeller) for (let t = 1; t <= tagningar; t++) jobb.push({ fras, rost, modell, t, grupp, stil: gruppStil });
     }
   }
-} else {
+} else if (!GOR_OM.length) {
   for (const fras of fraser) for (const rost of roster) for (const modell of modeller)
     for (let t = 1; t <= tagningar; t++) jobb.push({ fras, rost, modell, t });
 }
@@ -175,7 +183,7 @@ await Promise.all(Array.from({ length: PARALLELLT }, async () => {
   while (nasta < jobb.length) {
     const i = nasta++;
     const j = jobb[i];
-    try { ljuden[i] = await tala(j.fras, j.rost, j.modell); }
+    try { ljuden[i] = await tala(j.fras, j.rost, j.modell, j.stil ?? STIL_STANDARD); }
     catch (e) { ljuden[i] = { fel: e.message }; }
     if (++klara % 20 === 0) console.log(`… ${klara}/${jobb.length}`);
   }
@@ -184,7 +192,7 @@ await Promise.all(Array.from({ length: PARALLELLT }, async () => {
 let fel = 0;
 let nya = 0;
 for (let i = 0; i < jobb.length; i++) {
-  const { fras, rost, modell, t, grupp, ersatter } = jobb[i];
+  const { fras, rost, modell, t, grupp, ersatter, stil } = jobb[i];
   const ljud = ljuden[i];
   if (!ljud || ljud.fel) { fel++; console.log('FEL', rost, modell, t, fras.slice(0, 40), ljud && ljud.fel); continue; }
   while (await finnsPaServern(nummer(bib.nasta))) bib.nasta++;
@@ -251,7 +259,7 @@ if (fs.existsSync(listFil)) {
   const gruppFor = new Map();
   let g = '';
   for (const rad of fs.readFileSync(listFil, 'utf8').split('\n').map((r) => r.trim())) {
-    if (rad.startsWith('##')) g = rad.replace(/^#+\s*/, '');
+    if (rad.startsWith('##')) g = rad.replace(/^#+\s*/, '').split(' @ ')[0].trim();
     else if (/^\d+\s*\|/.test(rad)) gruppFor.set(rad.replace(/^\d+\s*\|\s*/, ''), g);
   }
   for (const k of bib.klipp) if (k.grupp && gruppFor.has(k.fras)) k.grupp = gruppFor.get(k.fras);

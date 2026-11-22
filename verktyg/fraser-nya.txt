@@ -19,6 +19,47 @@
 8 | Hallå? Skylten säger 100.
 8 | Hallå? Skylten säger 110.
 8 | Hallå? Skylten säger 120.
+## Tätort
+8 | Det här är en gata, inte Le Mans.
+8 | Det kan finnas barn här. Det verkar inte bekymra dig.
+8 | Grannarna tittar. Och de skriver upp registreringsnumret.
+8 | Du sparar typ tre sekunder till nästa rödljus. Grattis.
+8 | Hoppas du hinner bromsa för katten.
+8 | Det här är ingen motorväg, även om du verkar tro det.
+8 | Skolbarn går inte undan i hundra.
+8 | Nästa farthinder kommer att göra ont. Bra.
+8 | Du kör som om du ägde gatan. Det gör du inte.
+8 | I den här farten blir en fotgängare en olycka, inte en incident.
+8 | Lugna ner dig, racerföraren.
+8 | Kör du alltid så här genom folks trädgårdar?
+8 | Ingen här är imponerad.
+8 | Det finns hus här. Med människor i.
+8 | Rödljuset där framme väntar på dig ändå.
+## Snäll @ Lugn, vänlig och omtänksam. Jämnt tempo.
+8 | Du kör lite för fort.
+8 | Kanske dags att släppa lite på gasen?
+8 | Det är inte bråttom. Du kommer fram ändå.
+8 | Snälla, sakta ner lite.
+8 | Jag tjatar bara för att jag bryr mig om dig.
+8 | Ta det lugnt, det är ingen tävling.
+8 | Släpp gasen lite, så slipper vi böter.
+8 | Skylten säger 10, bara så du vet.
+8 | Skylten säger 20, bara så du vet.
+8 | Skylten säger 30, bara så du vet.
+8 | Skylten säger 40, bara så du vet.
+8 | Skylten säger 50, bara så du vet.
+8 | Skylten säger 60, bara så du vet.
+8 | Skylten säger 70, bara så du vet.
+8 | Skylten säger 80, bara så du vet.
+8 | Skylten säger 90, bara så du vet.
+8 | Skylten säger 100, bara så du vet.
+8 | Skylten säger 110, bara så du vet.
+8 | Skylten säger 120, bara så du vet.
+8 | Här kan det finnas barn och cyklister. Ta det lugnt.
+8 | Lite lugnare här inne bland husen, tack.
+8 | Tack, nu kör du lagligt igen.
+8 | Bra, så ska det se ut.
+8 | Nu är du nära att bli av med körkortet. Släpp gasen.
 ## 10-väg
 1 | Där du hade stannat i 10 kör du nu på i 8 kilometer i timmen.
 1 | Där du hade stannat i 10 kör du nu på i 12 kilometer i timmen.

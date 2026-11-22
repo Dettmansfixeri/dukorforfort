@@ -177,5 +177,39 @@ object ClipLines {
     )
     const val CYCLE = "Utmärkt! Fortkörning kan leda till bättre hälsa… DÅ DU MÅSTE CYKLA!"
     const val THANKS = "Tack. Var det så svårt?"
+
+    /** Elaka kommentarer för gator med gräns 10–50. */
+    val TOWN = listOf(
+        "Det här är en gata, inte Le Mans.",
+        "Det kan finnas barn här. Det verkar inte bekymra dig.",
+        "Grannarna tittar. Och de skriver upp registreringsnumret.",
+        "Du sparar typ tre sekunder till nästa rödljus. Grattis.",
+        "Hoppas du hinner bromsa för katten.",
+        "Det här är ingen motorväg, även om du verkar tro det.",
+        "Skolbarn går inte undan i hundra.",
+        "Nästa farthinder kommer att göra ont. Bra.",
+        "Du kör som om du ägde gatan. Det gör du inte.",
+        "I den här farten blir en fotgängare en olycka, inte en incident.",
+        "Lugna ner dig, racerföraren.",
+        "Kör du alltid så här genom folks trädgårdar?",
+        "Ingen här är imponerad.",
+        "Det finns hus här. Med människor i.",
+        "Rödljuset där framme väntar på dig ändå.",
+    )
+
+    /** Snäll nivå (inspelad med lugn, vänlig röst). */
+    val NICE = listOf(
+        "Du kör lite för fort.",
+        "Kanske dags att släppa lite på gasen?",
+        "Det är inte bråttom. Du kommer fram ändå.",
+        "Snälla, sakta ner lite.",
+        "Jag tjatar bara för att jag bryr mig om dig.",
+        "Ta det lugnt, det är ingen tävling.",
+        "Släpp gasen lite, så slipper vi böter.",
+    )
+    fun niceSignText(limit: Int) = "Skylten säger $limit, bara så du vet."
+    val NICE_TOWN = listOf("Här kan det finnas barn och cyklister. Ta det lugnt.", "Lite lugnare här inne bland husen, tack.")
+    val NICE_THANKS = listOf("Tack, nu kör du lagligt igen.", "Bra, så ska det se ut.")
+    const val NICE_LICENSE = "Nu är du nära att bli av med körkortet. Släpp gasen."
 }
 

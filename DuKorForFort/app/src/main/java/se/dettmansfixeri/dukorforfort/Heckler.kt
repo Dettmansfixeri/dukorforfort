@@ -267,7 +267,7 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
         } else if (this.tooFast) {
             this.tooFast = false
             if (count > 0 && mode != HeckleMode.OFF) {
-                if (useClips) { if (mode == HeckleMode.MEAN) playClip(ClipLines.THANKS, interrupt = true) }
+                if (useClips) playClip(if (mode == HeckleMode.MEAN) ClipLines.THANKS else ClipLines.NICE_THANKS.random(), interrupt = true)
                 else say(closing(mode), interrupt = true)
             }
             count = 0
@@ -335,14 +335,22 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
         count++
     }
 
-    /** En slumpad kommentar som finns inspelad (inte samma som nyss). Snällt läge: bara skylten. */
+    /** En slumpad kommentar som finns inspelad (inte samma som nyss), elak eller snäll. */
     private fun comment(over: Int): String? {
+        val town = limit <= 50
+        val license = ClipLines.license(over, limit)
         val all = buildList {
-            add(ClipLines.signText(limit))
             if (mode == HeckleMode.MEAN) {
+                add(ClipLines.signText(limit))
                 addAll(ClipLines.facts(over, limit))
                 addAll(ClipLines.INSULTS)
-                if (ClipLines.license(over, limit)) add(ClipLines.CYCLE)
+                if (town) addAll(ClipLines.TOWN)
+                if (license) add(ClipLines.CYCLE)
+            } else {
+                add(ClipLines.niceSignText(limit))
+                addAll(ClipLines.NICE)
+                if (town) addAll(ClipLines.NICE_TOWN)
+                if (license) add(ClipLines.NICE_LICENSE)
             }
         }.filter { VoicePack.has(it) }
         val fresh = all.filter { it !in recent }.ifEmpty { all }
