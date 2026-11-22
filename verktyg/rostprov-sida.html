@@ -4,7 +4,7 @@
 <meta name="robots" content="noindex">
 <title>Röstbibliotek</title>
 <style>
-body{background:#111;color:#eee;font-family:system-ui,sans-serif;margin:0;padding:16px 16px 120px;max-width:1400px}
+body{background:#111;color:#eee;font-family:system-ui,sans-serif;margin:0;padding:16px 16px 170px;max-width:1400px}
 h1{font-size:1.4em;margin:0 0 8px}h2{font-size:1.05em;margin:2em 0 .6em;color:#ffcc00}
 .info{color:#aaa;font-size:.9em}
 .filter{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:12px 0}
@@ -13,6 +13,9 @@ button{cursor:pointer}button:hover{border-color:#888}
 .klipp{display:flex;flex-wrap:wrap;gap:8px}
 .k{display:flex;align-items:center;gap:8px;background:#1b1b1b;border:1px solid #2c2c2c;border-radius:8px;padding:6px 10px}
 .k.vald{border-color:#ffcc00;background:#2a2510}
+.k.fel{border-color:#e05050;background:#2a1414}
+.k .flagga{display:flex;align-items:center;gap:4px;color:#e88;font-size:.8em;cursor:pointer;min-width:0}
+.k .flagga input{width:16px;height:16px;accent-color:#e05050}
 .k label{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:190px}
 .k input{width:20px;height:20px;accent-color:#ffcc00}
 .nr{font-weight:700;font-variant-numeric:tabular-nums;color:#ffcc00}
@@ -20,6 +23,8 @@ button{cursor:pointer}button:hover{border-color:#888}
 audio{height:32px;width:220px}
 .val{position:fixed;left:0;right:0;bottom:0;background:#1a1a1a;border-top:2px solid #ffcc00;padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .val input{flex:1;min-width:200px;font-family:ui-monospace,monospace}
+.val .rad{display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%}
+.val .felrad span{color:#e88}
 .tom{color:#888}
 </style></head><body>
 <h1>Röstbibliotek</h1>
@@ -28,19 +33,29 @@ audio{height:32px;width:220px}
   <label>Röst <select id="fRost"><option value="">Alla</option></select></label>
   <label>Modell <select id="fModell"><option value="">Alla</option></select></label>
   <label><input type="checkbox" id="fValda"> Bara valda</label>
+  <label><input type="checkbox" id="fDoljFel"> Dölj de som läser upp stilen</label>
 </div>
 <div id="lista"></div>
 <div class="val">
-  <span id="antal">0 valda</span>
-  <input id="koder" readonly placeholder="Kryssa i klipp – numren hamnar här">
-  <button id="kopiera">Kopiera</button>
-  <button id="rensa">Rensa</button>
+  <div class="rad">
+    <span id="antal">0 valda</span>
+    <input id="koder" readonly placeholder="Kryssa i klipp – numren hamnar här">
+    <button id="kopiera">Kopiera</button>
+    <button id="rensa">Rensa</button>
+  </div>
+  <div class="rad felrad">
+    <span id="antalFel">0 läser stilen</span>
+    <input id="felkoder" readonly placeholder="Klipp där rösten läser upp &quot;torr, irriterad …&quot;">
+    <button id="kopieraFel">Kopiera</button>
+  </div>
 </div>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let valda = new Set();
 try { valda = new Set(JSON.parse(localStorage.getItem('rostval') || '[]')); } catch (e) {}
+let fel = new Set();   // klipp där rösten läser upp stilinstruktionen
+try { fel = new Set(JSON.parse(localStorage.getItem('rostfel') || '[]')); } catch (e) {}
 let klipp = [];
 
 function spara() {
@@ -48,13 +63,17 @@ function spara() {
   const lista = [...valda].sort();
   $('koder').value = lista.join(', ');
   $('antal').textContent = lista.length + (lista.length === 1 ? ' vald' : ' valda');
+  try { localStorage.setItem('rostfel', JSON.stringify([...fel])); } catch (e) {}
+  const fl = [...fel].sort();
+  $('felkoder').value = fl.join(', ');
+  $('antalFel').textContent = fl.length + ' läser stilen';
 }
 
 function rita() {
-  const r = $('fRost').value, m = $('fModell').value, bara = $('fValda').checked;
+  const r = $('fRost').value, m = $('fModell').value, bara = $('fValda').checked, dolj = $('fDoljFel').checked;
   const fraser = new Map();
   for (const k of klipp) {
-    if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr))) continue;
+    if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr)) || (dolj && fel.has(k.nr))) continue;
     if (!fraser.has(k.fras)) fraser.set(k.fras, []);
     fraser.get(k.fras).push(k);
   }
@@ -62,12 +81,13 @@ function rita() {
   for (const [fras, lista] of fraser) {
     html += `<h2>${esc(fras)}</h2><div class="klipp">`;
     for (const k of lista) {
-      const v = valda.has(k.nr);
-      html += `<div class="k${v ? ' vald' : ''}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
+      const v = valda.has(k.nr), f = fel.has(k.nr);
+      html += `<div class="k${v ? ' vald' : ''}${f ? ' fel' : ''}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
         <label><input type="checkbox" data-nr="${esc(k.nr)}"${v ? ' checked' : ''}>
         <span class="nr">${esc(k.nr)}</span>
         <span>${esc(k.rost)}<br><span class="om">${esc(k.modell)} · ${esc(k.skapad)}</span></span></label>
-        <audio controls preload="none" src="${esc(k.fil)}"></audio></div>`;
+        <audio controls preload="none" src="${esc(k.fil)}"></audio>
+        <label class="flagga" title="Rösten läser upp stilinstruktionen"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>läser stilen</label></div>`;
     }
     html += '</div>';
   }
@@ -75,6 +95,13 @@ function rita() {
 }
 
 $('lista').addEventListener('change', (e) => {
+  const fnr = e.target.dataset && e.target.dataset.fel;
+  if (fnr) {
+    if (e.target.checked) fel.add(fnr); else fel.delete(fnr);
+    e.target.closest('.k').classList.toggle('fel', e.target.checked);
+    spara();
+    return;
+  }
   const nr = e.target.dataset && e.target.dataset.nr;
   if (!nr) return;
   if (e.target.checked) valda.add(nr); else valda.delete(nr);
@@ -85,13 +112,17 @@ $('lista').addEventListener('change', (e) => {
 document.addEventListener('play', (e) => {
   document.querySelectorAll('audio').forEach((a) => { if (a !== e.target) a.pause(); });
 }, true);
-for (const id of ['fRost', 'fModell', 'fValda']) $(id).addEventListener('change', rita);
-$('kopiera').addEventListener('click', async () => {
-  const t = $('koder').value;
-  try { await navigator.clipboard.writeText(t); } catch (e) { $('koder').select(); document.execCommand('copy'); }
-  $('kopiera').textContent = 'Kopierat!';
-  setTimeout(() => { $('kopiera').textContent = 'Kopiera'; }, 1500);
-});
+for (const id of ['fRost', 'fModell', 'fValda', 'fDoljFel']) $(id).addEventListener('change', rita);
+function kopiera(knapp, ruta) {
+  $(knapp).addEventListener('click', async () => {
+    const t = $(ruta).value;
+    try { await navigator.clipboard.writeText(t); } catch (e) { $(ruta).select(); document.execCommand('copy'); }
+    $(knapp).textContent = 'Kopierat!';
+    setTimeout(() => { $(knapp).textContent = 'Kopiera'; }, 1500);
+  });
+}
+kopiera('kopiera', 'koder');
+kopiera('kopieraFel', 'felkoder');
 $('rensa').addEventListener('click', () => {
   if (!valda.size || !confirm('Ta bort alla kryss?')) return;
   valda.clear(); spara(); rita();

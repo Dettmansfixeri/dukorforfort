@@ -18,8 +18,9 @@ on:
         description: "Röster (kommatecken emellan)"
         default: "Achird,Algieba,Charon,Sadachbia,Aoede,Callirrhoe,Sulafat,Zephyr"
       modeller:
-        description: "Modeller: chirp, gemini-flash, gemini-pro"
-        default: "chirp,gemini-flash,gemini-pro"
+        description: "Modeller: chirp, gemini-flash, gemini-pro (tomt = inga nya klipp, bara uppdatera sidan)"
+        required: false
+        default: "gemini-flash,gemini-pro"
       fraser:
         description: "Fraser (| emellan)"
         default: "Du kör för fort, IDIOT!|Det här kostar dig tvåtusenfyrahundra kronor i böter. Plus busskort i minst två månader.|Utmärkt! Fortkörning kan leda till bättre hälsa… DÅ DU MÅSTE CYKLA!"

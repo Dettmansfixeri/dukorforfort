@@ -153,4 +153,5 @@ for (const fras of fraser) {
 fs.writeFileSync(path.join(UT, 'bibliotek.json'), JSON.stringify(bib, null, 1));
 fs.copyFileSync(new URL('rostprov-sida.html', import.meta.url), path.join(UT, 'index.html'));
 console.log(`Klart. ${nya} nya klipp (totalt ${bib.klipp.length}), ${fel} fel.`);
-if (nya === 0) process.exit(1);
+// Inga modeller valda = bara uppdatera lyssningssidan. Annars är det fel om inget klipp blev av.
+if (nya === 0 && modeller.length > 0) process.exit(1);
