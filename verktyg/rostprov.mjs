@@ -245,6 +245,13 @@ const bort = new Set(fs.existsSync(bortFil) ? fs.readFileSync(bortFil, 'utf8').s
 for (const k of bib.klipp) { if (bort.has(k.nr)) k.bort = true; else delete k.bort; }
 console.log(`${bort.size} klipp markerade som borttagna.`);
 
+// Godkända klipp (verktyg/rostval.txt) är redan klara – sidan visar dem bara om man vill.
+const valFil = new URL('rostval.txt', import.meta.url);
+const godkanda = new Set(fs.existsSync(valFil) ? fs.readFileSync(valFil, 'utf8').split('\n')
+  .filter((l) => !l.startsWith('#')).join(',').split(',').map((s) => s.trim()).filter(Boolean) : []);
+for (const k of bib.klipp) { if (godkanda.has(k.nr)) k.godkand = true; else delete k.godkand; }
+console.log(`${godkanda.size} klipp godkända.`);
+
 fs.writeFileSync(path.join(UT, 'bibliotek.json'), JSON.stringify(bib, null, 1));
 fs.copyFileSync(new URL('rostprov-sida.html', import.meta.url), path.join(UT, 'index.html'));
 console.log(`Klart. ${nya} nya klipp (totalt ${bib.klipp.length}), ${fel} fel.`);

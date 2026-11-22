@@ -42,6 +42,7 @@ h1.grupp{font-size:1.5em;margin:1.6em 0 .2em;padding:6px 10px;background:#ffcc00
   <label><input type="checkbox" id="fOhorda"> Bara de jag inte lyssnat på</label>
   <label><input type="checkbox" id="fLangst"> Visa även för långa och avhuggna <span id="antalLanga"></span></label>
   <label><input type="checkbox" id="fBort"> Visa borttagna <span id="antalBort"></span></label>
+  <label><input type="checkbox" id="fGodkanda"> Visa godkända <span id="antalGodkanda"></span></label>
   <span class="info">Kortast först. För långa klipp (mycket längre än de andra med samma fras – läser oftast upp stilen) är dolda.
     Visas de är tiden <span style="color:#ff9800;font-weight:700">orange</span>.</span>
   <span class="info" id="antalHorda"></span>
@@ -125,6 +126,7 @@ function rita() {
   let doldaLanga = 0;
   for (const k of klipp) {
     if ((k.bort || k.ersatt) && !$('fBort').checked) continue;   // borttagna (verktyg/rostbort.txt) eller ersatta av ett nytt klipp
+    if (k.godkand && !$('fGodkanda').checked) continue;   // redan godkända (verktyg/rostval.txt)
     if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr)) || (dolj && (fel.has(k.nr) || uttal.has(k.nr))) || (ohorda && hord.has(k.nr))) continue;
     // För långa klipp döljs (utom valda, så man inte tappar bort något man kryssat i).
     if (!visaLanga && (arLangt(k) || arAvhugget(k)) && !valda.has(k.nr)) { doldaLanga++; continue; }
@@ -133,6 +135,7 @@ function rita() {
   }
   $('antalLanga').textContent = `(${klipp.filter((k) => !k.bort && !k.ersatt && (arLangt(k) || arAvhugget(k))).length} st)`;
   $('antalBort').textContent = `(${klipp.filter((k) => k.bort || k.ersatt).length} st)`;
+  $('antalGodkanda').textContent = `(${klipp.filter((k) => k.godkand).length} st)`;
   let html = '';
   // Kortast först inom varje fras; okänd längd sist.
   for (const lista of fraser.values()) lista.sort((a, b) => (langd[a.nr] ?? 1e9) - (langd[b.nr] ?? 1e9));
@@ -216,7 +219,7 @@ document.addEventListener('loadedmetadata', (e) => {
   clearTimeout(sparaLangd);
   sparaLangd = setTimeout(() => { try { localStorage.setItem('rostlangd', JSON.stringify(langd)); } catch (err) {} }, 500);
 }, true);
-for (const id of ['fRost', 'fModell', 'fValda', 'fDoljFel', 'fOhorda', 'fLangst', 'fBort']) $(id).addEventListener('change', rita);
+for (const id of ['fRost', 'fModell', 'fValda', 'fDoljFel', 'fOhorda', 'fLangst', 'fBort', 'fGodkanda']) $(id).addEventListener('change', rita);
 function kopiera(knapp, ruta) {
   $(knapp).addEventListener('click', async () => {
     const t = $(ruta).value;
