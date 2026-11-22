@@ -39,6 +39,10 @@ on:
         description: "Fil med fraser, \"antal röster | fras\" per rad (tomt = använd Fraser nedan)"
         required: false
         default: "verktyg/fraser-nya.txt"
+      grupper:
+        description: "Bara de här grupperna ur fraslistan (tomt = alla)"
+        required: false
+        default: "Fasta kommentarer, Skylten, 10-väg, 20-väg, 30-väg"
       fraser:
         description: "Fraser (| emellan)"
         default: "Det här kostar dig ett tusen femhundra kronor i böter.|Det här kostar dig två tusen kronor i böter.|Det här kostar dig två tusen fyrahundra kronor i böter.|Det här kostar dig två tusen åttahundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter.|Det här kostar dig tre tusen sexhundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig tre tusen sexhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig fyra tusen kronor i böter. Plus busskort i minst två månader."
@@ -90,6 +94,7 @@ jobs:
           TEMPO: ${{ inputs.tempo }}
           FRASLISTA: ${{ inputs.fraslista }}
           GOR_OM: ${{ inputs.gor_om }}
+          GRUPPER: ${{ inputs.grupper }}
         run: node verktyg/rostprov.mjs
 
       - name: Spara som nedladdning också

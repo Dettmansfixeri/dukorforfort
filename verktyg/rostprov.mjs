@@ -147,8 +147,11 @@ if (GOR_OM.length) {
   const rader = fs.readFileSync(FRASLISTA, 'utf8').split('\n').map((r) => r.trim()).filter((r) => r && (!r.startsWith('#') || r.startsWith('##')));
   let tur = 0;
   let grupp = '';
+  // GRUPPER = bara de här grupperna ur listan (tomt = alla), t.ex. "Skylten, 30-väg".
+  const bara = (process.env.GRUPPER || '').split(',').map((g) => g.trim().toLowerCase()).filter(Boolean);
   for (const rad of rader) {
     if (rad.startsWith('##')) { grupp = rad.replace(/^#+\s*/, ''); continue; }
+    if (bara.length && !bara.includes(grupp.toLowerCase())) continue;
     const m = /^(\d+)\s*\|\s*(.+)$/.exec(rad);
     const antal = m ? Math.min(+m[1], roster.length) : roster.length;
     const fras = m ? m[2] : rad;

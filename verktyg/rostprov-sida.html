@@ -79,6 +79,8 @@ const fmtLangd = (s) => s == null ? '…' : s.toFixed(1).replace('.', ',') + ' s
 /** Slutar klippet tvärt (troligen avhugget mitt i ett ord)? Mätt av Röstprov. */
 const arAvhugget = (k) => typeof k.slut === 'number' && k.slut > -30;
 /** Ska göras om av sig själv: för långt eller avhugget (inte de som redan är ersatta eller borttagna). */
+let uttal = new Set();   // klipp med fel uttal (görs också om)
+try { uttal = new Set(JSON.parse(localStorage.getItem('rostuttal') || '[]')); } catch (e) {}
 let ejGorOm = new Set();   // automatiskt flaggade som man ändå godkänt (kryssat ur 'gör om')
 try { ejGorOm = new Set(JSON.parse(localStorage.getItem('rostejgorom') || '[]')); } catch (e) {}
 const autoGorOm = (k) => !k.bort && !k.ersatt && !valda.has(k.nr) && !ejGorOm.has(k.nr) && (arLangt(k) || arAvhugget(k));
@@ -106,7 +108,8 @@ function spara() {
   $('antal').textContent = lista.length + (lista.length === 1 ? ' vald' : ' valda');
   try { localStorage.setItem('rostfel', JSON.stringify([...fel])); } catch (e) {}
   // Att göra om = de man markerat + för långa och avhuggna (inte ersatta eller borttagna).
-  const fl = [...new Set([...fel, ...klipp.filter(autoGorOm).map((k) => k.nr)])]
+  try { localStorage.setItem('rostuttal', JSON.stringify([...uttal])); } catch (e) {}
+  const fl = [...new Set([...fel, ...uttal, ...klipp.filter(autoGorOm).map((k) => k.nr)])]
     .filter((nr) => { const k = klipp.find((x) => x.nr === nr); return k && !k.ersatt && !k.bort; }).sort();
   $('felkoder').value = fl.join(', ');
   $('antalFel').textContent = fl.length + ' att göra om';
@@ -122,7 +125,7 @@ function rita() {
   let doldaLanga = 0;
   for (const k of klipp) {
     if ((k.bort || k.ersatt) && !$('fBort').checked) continue;   // borttagna (verktyg/rostbort.txt) eller ersatta av ett nytt klipp
-    if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr)) || (dolj && fel.has(k.nr)) || (ohorda && hord.has(k.nr))) continue;
+    if ((r && k.rost !== r) || (m && k.modell !== m) || (bara && !valda.has(k.nr)) || (dolj && (fel.has(k.nr) || uttal.has(k.nr))) || (ohorda && hord.has(k.nr))) continue;
     // För långa klipp döljs (utom valda, så man inte tappar bort något man kryssat i).
     if (!visaLanga && (arLangt(k) || arAvhugget(k)) && !valda.has(k.nr)) { doldaLanga++; continue; }
     if (!fraser.has(k.fras)) fraser.set(k.fras, []);
@@ -144,14 +147,15 @@ function rita() {
     html += `<h2>${esc(fras)}</h2><div class="klipp">`;
     for (const k of lista) {
       const v = valda.has(k.nr), f = fel.has(k.nr) || autoGorOm(k), h = hord.has(k.nr);
-      html += `<div class="k${v ? ' vald' : ''}${f ? ' fel' : ''}${h ? ' lyssnad' : ''}" data-k="${esc(k.nr)}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
+      html += `<div class="k${v ? ' vald' : ''}${f || uttal.has(k.nr) ? ' fel' : ''}${h ? ' lyssnad' : ''}" data-k="${esc(k.nr)}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
         <label><input type="checkbox" data-nr="${esc(k.nr)}"${v ? ' checked' : ''}>
         <span class="nr">${esc(k.nr)}</span>
         <span>${esc(k.rost)}<br><span class="om">${esc(k.modell)} · ${esc(k.skapad)}</span></span></label>
         <span class="langd${arLangt(k) ? ' lang' : ''}" data-langd="${esc(k.nr)}">${fmtLangd(langd[k.nr])}${arAvhugget(k) ? ' <b style="color:#e05050">avhugget?</b>' : ''}</span>
         <audio controls preload="${langd[k.nr] == null ? 'metadata' : 'none'}" src="${esc(k.fil)}"></audio>
         <span class="hord">${h ? '✓ lyssnad' : ''}</span>
-        <label class="flagga" title="Spela in igen: läser upp stilen, huggs av, fel uttal …"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>gör om</label></div>`;
+        <label class="flagga" title="Fel uttal – spelas in igen"><input type="checkbox" data-uttal="${esc(k.nr)}"${uttal.has(k.nr) ? ' checked' : ''}>fel uttal</label>
+        <label class="flagga" title="Spela in igen: läser upp stilen, huggs av …"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>gör om</label></div>`;
     }
     html += '</div>';
   }
@@ -159,6 +163,13 @@ function rita() {
 }
 
 $('lista').addEventListener('change', (e) => {
+  const unr = e.target.dataset && e.target.dataset.uttal;
+  if (unr) {
+    if (e.target.checked) uttal.add(unr); else uttal.delete(unr);
+    e.target.closest('.k').classList.toggle('fel', e.target.checked || fel.has(unr));
+    spara();
+    return;
+  }
   const fnr = e.target.dataset && e.target.dataset.fel;
   if (fnr) {
     if (e.target.checked) { fel.add(fnr); ejGorOm.delete(fnr); } else { fel.delete(fnr); ejGorOm.add(fnr); }

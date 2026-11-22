@@ -7,6 +7,8 @@
 8 | Tror du att skyltarna är förslag?
 8 | Tack. Var det så svårt?
 ## Skylten
+8 | Hallå? Skylten säger 10.
+8 | Hallå? Skylten säger 20.
 8 | Hallå? Skylten säger 30.
 8 | Hallå? Skylten säger 40.
 8 | Hallå? Skylten säger 50.
@@ -17,6 +19,60 @@
 8 | Hallå? Skylten säger 100.
 8 | Hallå? Skylten säger 110.
 8 | Hallå? Skylten säger 120.
+## 10-väg
+1 | Där du hade stannat i 10 kör du nu på i 8 kilometer i timmen.
+1 | Du sparar 327 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Nu har du ökat luftmotståndet med 21 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 10 kör du nu på i 12 kilometer i timmen.
+1 | Du sparar 600 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Nu har du ökat luftmotståndet med 44 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 10 kör du nu på i 13 kilometer i timmen.
+1 | Du sparar 831 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Nu har du ökat luftmotståndet med 69 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 10 kör du nu på i 15 kilometer i timmen.
+1 | Du sparar 1200 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Din stoppsträcka är 2 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
+1 | Nu har du ökat luftmotståndet med 125 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 10 kör du nu på i 17 kilometer i timmen.
+1 | Du sparar 1482 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Din stoppsträcka är 3 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
+1 | Nu har du ökat luftmotståndet med 189 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 10 kör du nu på i 20 kilometer i timmen.
+1 | Du sparar 1800 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Din stoppsträcka är 4 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
+1 | Nu har du ökat luftmotståndet med 300 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 10 kör du nu på i 25 kilometer i timmen.
+1 | Du sparar 2160 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Din stoppsträcka är 7 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
+1 | Nu har du ökat luftmotståndet med 525 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 10 kör du nu på i 30 kilometer i timmen.
+1 | Du sparar 2400 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Din stoppsträcka är 10 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
+1 | Nu har du ökat luftmotståndet med 800 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+## 20-väg
+1 | Där du hade stannat i 20 kör du nu på i 10 kilometer i timmen.
+1 | Du sparar 86 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Nu har du ökat luftmotståndet med 10 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 20 kör du nu på i 14 kilometer i timmen.
+1 | Du sparar 164 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Där du hade stannat i 20 kör du nu på i 17 kilometer i timmen.
+1 | Du sparar 235 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Nu har du ökat luftmotståndet med 32 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 20 kör du nu på i 22 kilometer i timmen.
+1 | Du sparar 360 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Nu har du ökat luftmotståndet med 56 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 20 kör du nu på i 26 kilometer i timmen.
+1 | Du sparar 467 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Nu har du ökat luftmotståndet med 82 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 20 kör du nu på i 30 kilometer i timmen.
+1 | Din stoppsträcka är 6 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
+1 | Där du hade stannat i 20 kör du nu på i 35 kilometer i timmen.
+1 | Du sparar 771 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Din stoppsträcka är 9 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
+1 | Nu har du ökat luftmotståndet med 206 procent jämfört med om du hållit hastigheten. Plånboken gråter.
+1 | Där du hade stannat i 20 kör du nu på i 40 kilometer i timmen.
+1 | Du sparar 900 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
+1 | Din stoppsträcka är 12 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 ## 30-väg
 1 | Där du hade stannat i 30 kör du nu på i 11 kilometer i timmen.
 1 | Du sparar 39 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
@@ -26,11 +82,8 @@
 1 | Nu har du ökat luftmotståndet med 14 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 30 kör du nu på i 18 kilometer i timmen.
 1 | Du sparar 109 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 2 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Nu har du ökat luftmotståndet med 21 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 30 kör du nu på i 24 kilometer i timmen.
 1 | Du sparar 171 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 3 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 36 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 30 kör du nu på i 29 kilometer i timmen.
 1 | Du sparar 227 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
@@ -38,12 +91,9 @@
 1 | Nu har du ökat luftmotståndet med 52 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 30 kör du nu på i 35 kilometer i timmen.
 1 | Du sparar 300 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 7 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 78 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 30 kör du nu på i 43 kilometer i timmen.
 1 | Du sparar 400 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 10 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Nu har du ökat luftmotståndet med 125 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 30 kör du nu på i 50 kilometer i timmen.
 1 | Du sparar 480 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Din stoppsträcka är 14 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
@@ -54,13 +104,11 @@
 1 | Nu har du ökat luftmotståndet med 5 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 40 kör du nu på i 16 kilometer i timmen.
 1 | Du sparar 43 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Nu har du ökat luftmotståndet med 10 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 40 kör du nu på i 20 kilometer i timmen.
 1 | Du sparar 63 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 16 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 40 kör du nu på i 26 kilometer i timmen.
 1 | Du sparar 100 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 4 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 27 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 40 kör du nu på i 31 kilometer i timmen.
 1 | Du sparar 134 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
@@ -68,17 +116,14 @@
 1 | Där du hade stannat i 40 kör du nu på i 37 kilometer i timmen.
 1 | Du sparar 180 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Din stoppsträcka är 8 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Nu har du ökat luftmotståndet med 56 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 40 kör du nu på i 47 kilometer i timmen.
 1 | Du sparar 245 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 12 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 89 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 40 kör du nu på i 55 kilometer i timmen.
 1 | Din stoppsträcka är 17 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Där du hade stannat i 40 kör du nu på i 69 kilometer i timmen.
 1 | Du sparar 386 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Din stoppsträcka är 27 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Nu har du ökat luftmotståndet med 206 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 ## 50-väg
 1 | Där du hade stannat i 50 kör du nu på i 12 kilometer i timmen.
 1 | Du sparar 14 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
@@ -92,15 +137,11 @@
 1 | Du sparar 65 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Där du hade stannat i 50 kör du nu på i 33 kilometer i timmen.
 1 | Du sparar 88 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 6 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 30 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 50 kör du nu på i 40 kilometer i timmen.
 1 | Du sparar 120 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 9 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Nu har du ökat luftmotståndet med 44 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 50 kör du nu på i 50 kilometer i timmen.
 1 | Du sparar 166 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Nu har du ökat luftmotståndet med 69 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 50 kör du nu på i 58 kilometer i timmen.
 1 | Du sparar 206 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Din stoppsträcka är 19 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
@@ -122,7 +163,6 @@
 1 | Där du hade stannat i 60 kör du nu på i 35 kilometer i timmen.
 1 | Nu har du ökat luftmotståndet med 25 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 60 kör du nu på i 42 kilometer i timmen.
-1 | Du sparar 86 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Där du hade stannat i 60 kör du nu på i 53 kilometer i timmen.
 1 | Din stoppsträcka är 15 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Där du hade stannat i 60 kör du nu på i 62 kilometer i timmen.
@@ -217,7 +257,6 @@
 1 | Du sparar 33 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Där du hade stannat i 100 kör du nu på i 63 kilometer i timmen.
 1 | Din stoppsträcka är 22 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Nu har du ökat luftmotståndet med 32 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Där du hade stannat i 100 kör du nu på i 74 kilometer i timmen.
 1 | Du sparar 60 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Där du hade stannat i 100 kör du nu på i 92 kilometer i timmen.
