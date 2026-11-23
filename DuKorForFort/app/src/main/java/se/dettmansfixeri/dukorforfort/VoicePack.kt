@@ -12,11 +12,12 @@ import java.net.URL
 import java.util.zip.ZipInputStream
 
 /**
- * Röstpaketet: de godkända Gemini-klippen (Opus i WebM) som laddas ner från webbsidan.
+ * Röstpaketet: de godkända Gemini-klippen (Opus i WebM) som laddas ner från GitHub.
  * Röstprov på GitHub bygger rostpaket.zip (klippen + manifest.json) och rostpaket.json (version).
  */
 object VoicePack {
-    private const val BASE = "https://dukorforfort.dettmansfixeri.se/rostprov/"
+    /** Röstprov lägger paketet som release på GitHub (tagg "rostpaket"). */
+    private const val BASE = "https://github.com/Dettmansfixeri/dukorforfort/releases/download/rostpaket/"
     private const val PREFS = "rostpaket"
 
     sealed interface State {

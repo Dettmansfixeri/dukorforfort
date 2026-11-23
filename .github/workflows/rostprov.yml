@@ -60,6 +60,9 @@ on:
 
 concurrency: rostprov
 
+permissions:
+  contents: write          # röstpaketet läggs som release (tagg "rostpaket")
+
 jobs:
   prov:
     runs-on: ubuntu-latest
@@ -104,6 +107,22 @@ jobs:
         with:
           name: rostprov
           path: ut/
+
+      # Appen hämtar röstpaketet härifrån:
+      #   https://github.com/Dettmansfixeri/dukorforfort/releases/download/rostpaket/rostpaket.json
+      # Releasen är en förhandsversion, så att "senaste release" (hastighetsdatan) inte påverkas.
+      # Zip först, sedan json – appen ser aldrig en ny version innan paketet finns.
+      - name: Lägg röstpaketet på GitHub
+        if: hashFiles('ut/rostpaket.zip') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view rostpaket >/dev/null 2>&1; then
+            gh release create rostpaket --title "Röstpaket" --notes "De godkända röstklippen som appen laddar ner." \
+              --target "$GITHUB_SHA" --prerelease --latest=false
+          fi
+          gh release upload rostpaket ut/rostpaket.zip --clobber
+          gh release upload rostpaket ut/rostpaket.json --clobber
 
       - name: Lägg upp på webbsidan
         env:
