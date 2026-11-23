@@ -36,7 +36,7 @@ on:
       gor_om:
         description: "Gör om: nummer på klipp som ska spelas in igen (kommatecken emellan). Görs tillsammans med fraslistan."
         required: false
-        default: "533, 539, 540, 541, 543, 548, 549, 550, 551, 552, 554, 566, 572, 578, 580, 586, 606, 607, 609, 610, 613, 614, 616, 619, 620, 621, 622, 623, 624, 626, 636, 640, 643, 644, 651, 664, 667, 668, 671, 672, 675, 678, 679, 693, 694, 697, 698, 702, 704, 708, 722, 738, 744, 748, 759, 761, 765, 774, 784, 794, 801, 802, 807, 863, 888"
+        default: ""
       fraslista:
         description: "Fil med nya fraser, t.ex. verktyg/fraser-nya.txt (tomt = inga nya fraser)"
         required: false
