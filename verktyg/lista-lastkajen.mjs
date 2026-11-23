@@ -48,3 +48,36 @@ for (const p of paket.filter((x) => /nvdb|väg|vag|gata|trafik/i.test(namn(x))).
   console.log(`\n[${p.id ?? p.Id}] ${namn(p)} (${filer.length} filer)`);
   for (const f of filer.slice(0, 40)) console.log("   " + f);
 }
+
+// Länspaketen (hela NVDB per län): filerna i Gotland (minst), ATK och Rastplats.
+for (const id of [10146, 10139, 10140]) {
+  const r = await get(`/DataPackage/GetDataPackageFiles?id=${id}`);
+  const filer = (r.body ?? []).filter((f) => !f.isFolder);
+  console.log(`\n[${id}] (${filer.length} filer)`);
+  for (const f of filer.slice(0, 60)) console.log(`   ${f.name}  ${f.size ?? ""}`);
+}
+
+// Ladda ner Gotlands GeoPackage och lista vilka lager (tabeller) som finns i NVDB.
+import { execFileSync } from "node:child_process";
+import { writeFileSync, readdirSync } from "node:fs";
+const got = ((await get(`/DataPackage/GetDataPackageFiles?id=10146`)).body ?? [])
+  .filter((f) => !f.isFolder && /gpkg|geopackage/i.test(f.name) && /\.zip$/i.test(f.name));
+if (got.length) {
+  const f = got[0];
+  const tok = await fetch(`${BASE}/file/GetDataPackageDownloadToken?id=10146&fileName=${encodeURIComponent(f.name)}`,
+    { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()).catch(() => null);
+  const url = tok != null ? `${BASE}/File/GetDataPackageFile?token=${encodeURIComponent(String(tok))}` : null;
+  if (url) {
+    const buf = Buffer.from(await (await fetch(url)).arrayBuffer());
+    writeFileSync("gotland.zip", buf);
+    execFileSync("unzip", ["-q", "-o", "gotland.zip", "-d", "gotland"]);
+    const { DatabaseSync } = await import("node:sqlite");
+    const gpkg = execFileSync("bash", ["-c", "find gotland -iname '*.gpkg' | head -1"]).toString().trim();
+    console.log(`\n--- Lager i ${f.name} (${gpkg}) ---`);
+    const db = new DatabaseSync(gpkg, { readOnly: true });
+    for (const { table_name } of db.prepare("SELECT table_name FROM gpkg_contents ORDER BY table_name").all()) {
+      const n = db.prepare(`SELECT count(*) AS n FROM "${table_name}"`).get().n;
+      console.log(`   ${table_name}  (${n} rader)`);
+    }
+  } else console.log("\nKunde inte få nedladdningslänk för Gotland.");
+}
