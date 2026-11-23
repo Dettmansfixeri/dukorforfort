@@ -289,6 +289,25 @@ for (const k of bib.klipp) { if (gorom.has(k.nr)) k.gorom = true; else delete k.
 
 fs.writeFileSync(path.join(UT, 'bibliotek.json'), JSON.stringify(bib, null, 1));
 
+// Jämn volym: alla klipp i paketet får samma upplevda ljudstyrka (EBU R128, -16 LUFS, topp högst -1,5 dB).
+// Två varv: först mäts klippet, sedan justeras det med en fast förstärkning (linear) så att rösten inte pumpar.
+const VOLYM = 'I=-16:TP=-1.5:LRA=11';
+function volymFilter(fil) {
+  const m = spawnSync('ffmpeg', ['-hide_banner', '-nostats', '-i', fil, '-af', `loudnorm=${VOLYM}:print_format=json`, '-f', 'null', '-'],
+    { maxBuffer: 16 << 20 });
+  const json = String(m.stderr).match(/{[^{}]*"input_i"[^{}]*}/);
+  if (json) {
+    try {
+      const v = JSON.parse(json[0]);
+      if (Number.isFinite(+v.input_i) && Number.isFinite(+v.input_tp)) {
+        return `loudnorm=${VOLYM}:measured_I=${v.input_i}:measured_TP=${v.input_tp}:measured_LRA=${v.input_lra}` +
+          `:measured_thresh=${v.input_thresh}:offset=${v.target_offset}:linear=true`;
+      }
+    } catch { /* mätningen gick inte att läsa, kör ett varv */ }
+  }
+  return `loudnorm=${VOLYM}`;
+}
+
 // Röstpaket till appen: de godkända klippen som Opus 32 kbit/s (WebM, spelas av Android 5+)
 // i en zip med manifest.json. Appen laddar ner rostpaket.zip när rostpaket.json säger ny version.
 if (!process.env.LOKALT) {
@@ -306,8 +325,8 @@ if (!process.env.LOKALT) {
       tmp = true;
     }
     const fil = `${k.nr}.webm`;
-    const r = spawnSync('ffmpeg', ['-v', 'error', '-y', '-i', kalla, '-ac', '1', '-c:a', 'libopus', '-b:a', '32k',
-      '-application', 'voip', '-f', 'webm', path.join(PAKET, fil)]);
+    const r = spawnSync('ffmpeg', ['-v', 'error', '-y', '-i', kalla, '-af', volymFilter(kalla), '-ar', '48000', '-ac', '1',
+      '-c:a', 'libopus', '-b:a', '32k', '-application', 'voip', '-f', 'webm', path.join(PAKET, fil)]);
     if (tmp) fs.rmSync(kalla);
     if (r.status !== 0) { console.log('Röstpaket: ffmpeg misslyckades', k.nr, String(r.stderr).slice(0, 200)); continue; }
     manifest.klipp.push({ nr: k.nr, fil, fras: k.fras, rost: k.rost, grupp: k.grupp || '' });
