@@ -46,6 +46,10 @@ object VoicePack {
 
     fun has(text: String) = byText.containsKey(text)
 
+    /** Klippfil → röstnamn (från manifestet). */
+    @Volatile private var voices: Map<String, String> = emptyMap()
+    fun voiceOf(f: File): String? = voices[f.path]
+
     /** Läser in paketet som redan finns i telefonen. */
     fun load(ctx: Context) {
         val d = dir(ctx)
@@ -55,15 +59,18 @@ object VoicePack {
             val json = JSONObject(m.readText())
             val arr = json.getJSONArray("klipp")
             val map = HashMap<String, MutableList<File>>()
+            val rost = HashMap<String, String>()
             val grp = LinkedHashMap<String, LinkedHashSet<String>>()
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
                 val f = File(d, o.getString("fil"))
                 if (!f.exists()) continue
                 map.getOrPut(o.getString("fras")) { ArrayList() } += f
+                o.optString("rost").takeIf { it.isNotEmpty() }?.let { rost[f.path] = it }
                 grp.getOrPut(o.optString("grupp")) { LinkedHashSet() } += o.getString("fras")
             }
             byText = map
+            voices = rost
             groups = grp.mapValues { it.value.toList() }
             _state.value = State.Ready(map.values.sumOf { it.size }, json.optString("version"))
         } catch (e: Exception) {
@@ -166,6 +173,29 @@ object VoicePack {
 object ClipLines {
     val LIMITS = listOf(10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120)
     private val STEPS = listOf(1, 2, 3, 5, 7, 10, 15, 20, 30)
+    /** A-traktor/EPA över 30 km/h: räknas som bil, inte fortkörning. */
+    fun epaText(nice: Boolean) =
+        if (nice) "Över trettio räknas din EPA som en bil, och då behöver du B-körkort."
+        else "Över trettio räknas din EPA som en bil. Utan B-körkort är det olovlig körning."
+
+    /**
+     * Förvarningen om lägre gräns [kmh]. Den sägs när det är dags att släppa gasen, så tidpunkten
+     * följer redan farten – därför behövs inget avstånd i frasen.
+     */
+    fun aheadText(kmh: Int): String = "Nu blir det $kmh här framme."
+
+    /** Beröm när man hållit gränsen en stund (snäll eller syrlig). */
+    fun praise(nice: Boolean): List<String> =
+        if (nice) listOf("Snyggt. Du har hållit hastigheten en bra stund nu.", "Bra jobbat, du ligger precis rätt.")
+        else listOf("Du har hållit hastigheten en lång stund. Jag är nästan imponerad.", "Kolla, du kan ju hålla hastigheten. Vem hade trott det?")
+
+    /** Krockfarten när man tvärnitar där man hade stannat om man hållit gränsen. Följs av [DRY]. */
+    fun impactText(kmh: Int): String =
+        "Behöver du tvärnita nu så krockar du i $kmh kilometer i timmen, där du istället hade hunnit stanna om du hållit hastigheten."
+    fun isImpact(text: String) = text.startsWith("Behöver du tvärnita")
+
+    /** Eget klipp som spelas direkt efter krockfarten (uträkningen gäller torr asfalt och bra däck). */
+    const val DRY = "Och det är vid torrt väglag."
 
     /** Steget (km/h över) som fraserna är inspelade för: närmast under eller lika med [over]. */
     fun step(over: Int, limit: Int): Int? =
@@ -198,7 +228,7 @@ object ClipLines {
         val st = step(over, limit) ?: return emptyList()
         val s = limit + st
         val out = ArrayList<String>()
-        SpeedFacts.impactKmh(s, limit).takeIf { it >= 5 }?.let { out += "Där du hade stannat i $limit kör du nu på i $it kilometer i timmen." }
+        SpeedFacts.impactKmh(s, limit).takeIf { it >= 5 }?.let { out += impactText(it) }
         // Sparade sekunder och luftmotstånd säger inget på 10–30-vägar – bara på snabbare vägar.
         if (limit > 30) SpeedFacts.secondsSavedPerMil(s, limit).takeIf { it >= 5 }?.let { out += "Du sparar $it sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?" }
         SpeedFacts.extraStopMeters(s, limit).takeIf { it >= 2 }?.let { out += "Din stoppsträcka är $it meter längre än om du hållit hastigheten. Hoppas ingen går över vägen." }
@@ -216,7 +246,7 @@ object ClipLines {
             for ((g, fraser) in groups) {
                 val gl = g.lowercase()
                 if (gl.startsWith("snäll") != nice) continue
-                if (gl == "böter" || gl.endsWith("-väg")) continue
+                if (gl == "böter" || gl.endsWith("-väg") || gl.startsWith("förvarning") || gl.endsWith("epa") || gl.startsWith("torrt") || gl == "krockfart" || gl.endsWith("beröm")) continue
                 if (("tack" in gl) != closing) continue
                 if ("körkort" in gl && !license) continue
                 if ("tätort" in gl && limit > 50) continue

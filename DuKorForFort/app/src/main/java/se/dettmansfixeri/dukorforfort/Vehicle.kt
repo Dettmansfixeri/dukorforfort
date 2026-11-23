@@ -41,6 +41,9 @@ enum class Vehicle(
     fun codes(trailer: Boolean): Set<Int> = if (trailer) codes + 160 else codes
 
     companion object {
+        /** Över den här farten räknas en A-traktor/EPA som bil enligt lagen (olovlig körning utan B-körkort). */
+        const val EPA_MAX = 30
+
         const val TRAILER_MAX = 80
         fun fromName(name: String?): Vehicle = entries.firstOrNull { it.name == name } ?: PERSONBIL
     }

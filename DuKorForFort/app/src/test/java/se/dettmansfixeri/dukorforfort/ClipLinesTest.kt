@@ -32,6 +32,11 @@ class ClipLinesTest {
             for (f in ClipLines.facts(over, limit)) assertTrue("saknas: $f", f in finns)
             assertTrue("saknas: ${ClipLines.fineText(over, limit)}", ClipLines.fineText(over, limit) in finns)
         }
+        assertTrue(ClipLines.DRY in finns)
+        for (nice in listOf(true, false)) for (p in ClipLines.praise(nice)) assertTrue("saknas: $p", p in finns)
+        assertTrue(ClipLines.epaText(true) in finns)
+        assertTrue(ClipLines.epaText(false) in finns)
+        for (k in ClipLines.LIMITS.dropLast(1)) assertTrue("saknas: ${ClipLines.aheadText(k)}", ClipLines.aheadText(k) in finns)
     }
 
     @Test fun gruppreglerna() {
@@ -45,6 +50,10 @@ class ClipLinesTest {
         assertFalse("Hallå? Skylten säger 30." in elak50)                  // bara rätt gräns
         assertFalse(elak50.any { it.startsWith("Det här kostar dig") })     // böterna sägs för sig
         assertFalse("Du kör lite för fort." in elak50)                     // snällt bara på snäll nivå
+        assertFalse(elak50.any { it.endsWith("här framme.") })       // förvarningen är ingen kommentar
+        assertFalse(elak50.any { it in ClipLines.praise(false) })           // beröm sägs bara när man hållit gränsen
+        assertFalse(ClipLines.DRY in elak50)                               // sägs bara efter krockfarten
+        assertFalse(elak50.any { "EPA" in it })                             // EPA sägs i stället för böterna
         assertTrue("Du kör lite för fort." in snall50)
         assertTrue("Skylten säger 50, bara så du vet." in snall50)
         assertFalse("Nu är du nära att bli av med körkortet. Släpp gasen." in snall50)

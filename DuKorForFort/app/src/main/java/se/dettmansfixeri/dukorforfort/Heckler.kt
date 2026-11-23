@@ -72,7 +72,7 @@ object SpeedFacts {
 class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = null) {
 
     companion object {
-        const val SAMPLE = "Där du hade stannat i 70 kör du nu på i 28 kilometer i timmen. Grattis, du är officiellt en fartdåre."
+        val SAMPLE = ClipLines.impactText(28) + " " + ClipLines.DRY
 
         fun isSwedish(v: Voice) = v.locale.language == "sv"
         fun needsNetwork(v: Voice) = v.isNetworkConnectionRequired ||
@@ -97,7 +97,15 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
         private const val CLIP_FIRST_DELAY = 2000L
         private const val CLIP_GAP = 3000L
         private const val CLIP_EVERY_M = 100.0
+        /** Böterna sägs först från så här många km/h över gränsen (under det bara kommentarer). */
+        const val FINE_FROM = 2
+        /** Samma böter upprepas bara var så här många gånger – annars kommentarer. */
+        private const val FINE_EVERY = 4
         private const val GAP = 5000L
+        /** Beröm: efter så här lång tid inom gränsen, sedan högst så här ofta, och bara i minst så här hög fart. */
+        private const val PRAISE_AFTER = 5 * 60_000L
+        private const val PRAISE_EVERY = 15 * 60_000L
+        private const val PRAISE_MIN_KMH = 30
 
         private val MEAN = listOf(
             "Du kör för fort, idiot.",
@@ -123,7 +131,7 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
             val mean = mode == HeckleMode.MEAN
             return when (i % 4) {
                 0 -> SpeedFacts.impactKmh(v, l).takeIf { it >= 5 }?.let {
-                    "Där du hade stannat i $l kör du nu på i $it kilometer i timmen."
+                    ClipLines.impactText(it) + " " + ClipLines.DRY
                 }
                 1 -> SpeedFacts.secondsSavedPerMil(v, l).takeIf { it >= 1 }?.let {
                     if (mean) "Du sparar $it sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?"
@@ -259,6 +267,12 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
 
     fun update(tooFast: Boolean, speed: Int?, limit: Int?, mode: HeckleMode) {
         this.mode = mode
+        // Beröm: räkna hur länge man hållit gränsen (nollställs när man kör för fort).
+        if (tooFast) goodSince = 0L
+        else if (speed != null && limit != null) {
+            if (goodSince == 0L) goodSince = System.currentTimeMillis()
+            goodSpeed = speed
+        }
         if (tooFast && speed != null && limit != null) {
             if (!this.tooFast) { overSince = System.currentTimeMillis(); count = 0 }
             this.speed = speed
@@ -266,7 +280,9 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
             this.tooFast = true
         } else if (this.tooFast) {
             this.tooFast = false
-            if (count > 0 && mode != HeckleMode.OFF) {
+            // Ingen "tack" när det bara är skylten som höjts – föraren har inte saktat ner.
+            val limitRaised = limit != null && limit > this.limit
+            if (count > 0 && mode != HeckleMode.OFF && !limitRaised) {
                 if (useClips) closingClip()?.let { playClip(it, interrupt = true) }
                 else say(closing(mode), interrupt = true)
             }
@@ -283,14 +299,43 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
         finished()
     }
 
+    // ---------- Beröm ----------
+    private var goodSince = 0L   // sedan när man hållit gränsen (0 = kör för fort / okänt)
+    private var goodSpeed = 0
+    private var lastPraise = 0L
+
+    /** Berömmer när man hållit gränsen en stund: första gången efter [PRAISE_AFTER], sedan högst var [PRAISE_EVERY]. */
+    private fun praiseTick() {
+        if (mode == HeckleMode.OFF || tooFast || speaking || goodSince == 0L || goodSpeed < PRAISE_MIN_KMH) return
+        val now = System.currentTimeMillis()
+        val due = if (lastPraise < goodSince) goodSince + PRAISE_AFTER else lastPraise + PRAISE_EVERY
+        if (now < due) return
+        lastPraise = now   // även om det inte gick att säga – försök inte igen varje halvsekund
+        val lines = ClipLines.praise(mode == HeckleMode.NICE)
+        if (useClips) lines.filter { VoicePack.has(it) }.randomOrNull()?.let { playClip(it) }
+        else if (_ready.value == true) say(lines.random())
+    }
+
     private fun tick() {
+        praiseTick()
         if (useClips) { clipTick(); return }
         if (!tooFast || mode == HeckleMode.OFF || _ready.value != true || speaking) return
         val now = System.currentTimeMillis()
         if (now - overSince < FIRST_DELAY) return
         if (count > 0 && now - lastDone < GAP) return
-        say(line(count, mode, speed, limit))
+        say(if (epa && count % FINE_EVERY == 0) ClipLines.epaText(mode == HeckleMode.NICE) else line(count, mode, speed, limit))
         count++
+    }
+
+    /**
+     * Säger ett besked (t.ex. förvarningen om lägre gräns), oavsett snäll/elak/av.
+     * Inspelat klipp om rösterna är på, annars talsyntes. Falskt om det inte gick (då tickar det i stället).
+     */
+    fun announce(text: String): Boolean {
+        if (useClips) return playClip(text)
+        if (_ready.value != true || speaking) return false
+        say(text)
+        return true
     }
 
     fun say(text: String, interrupt: Boolean = false) {
@@ -306,6 +351,11 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
     private var lastBand = -1          // senaste bötesbelopp som sagts
     private var lastTick = 0L
     private val recent = ArrayDeque<String>()
+    /** A-traktor/EPA som kör över 30 (sätts av SpeedTracker före [update]). */
+    @Volatile var epa = false
+    private var lastFile: File? = null
+    /** Klipp som spelas direkt efter det som spelas nu (torrt väglag efter krockfarten). */
+    private var followUp: String? = null
 
     /**
      * Böterna sägs direkt (efter 2 s över) och så fort beloppet går upp. Sedan var 100:e meter,
@@ -313,6 +363,20 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
      */
     /** Spelar ett slumpat bötesklipp direkt (knappen Provlyssna). */
     fun previewClip() { playClip(ClipLines.fineText(5, 50), interrupt = true) }
+
+    /**
+     * Provlyssna rösten i inställningarna: en slumpad kommentar för [m] (som om man kör 55 på en 50-väg).
+     * [clips] = de inspelade rösterna (testfunktion), annars telefonens talsyntes.
+     */
+    fun preview(m: HeckleMode, clips: Boolean) {
+        if (m == HeckleMode.OFF) return
+        if (clips) {
+            val l = ClipLines.fromGroups(VoicePack.groups, m == HeckleMode.NICE, closing = false, over = 5, limit = 50)
+            val text = (l.filter { VoicePack.has(it) } + ClipLines.fineText(5, 50)).random()
+            if (playClip(text, interrupt = true)) return
+        }
+        say(line(2 * (0..6).random(), m, 55, 50), interrupt = true)
+    }
 
     private fun clipTick() {
         val now = System.currentTimeMillis()
@@ -322,15 +386,18 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
         meters += speed / 3.6 * dt
         if (speaking || now - overSince < CLIP_FIRST_DELAY || now - lastDone < CLIP_GAP) return
         val over = (speed - limit).coerceAtLeast(1)
-        val fine = ClipLines.fine(over, limit) + (if (ClipLines.license(over, limit)) 1 else 0)
-        val wantFine = count == 0 || fine > lastBand
-        if (!wantFine && meters < CLIP_EVERY_M) return
-        val text = if (wantFine || count % 2 == 0) ClipLines.fineText(over, limit) else comment(over)
+        // A-traktor/EPA över 30: ingen ordningsbot – fordonet räknas som bil (olovlig körning). Sägs i stället för böterna.
+        val fineLine = if (epa) ClipLines.epaText(mode == HeckleMode.NICE) else ClipLines.fineText(over, limit)
+        val fine = if (epa) 100_000 else ClipLines.fine(over, limit) + (if (ClipLines.license(over, limit)) 1 else 0)
+        val fineOk = epa || over >= FINE_FROM
+        val wantFine = fineOk && (lastBand < 0 || fine > lastBand)
+        if (!wantFine && count > 0 && meters < CLIP_EVERY_M) return
+        val text = if (wantFine || (fineOk && count % FINE_EVERY == 0)) fineLine else comment(over)
         if (text == null || !playClip(text)) {
-            // Kommentaren finns inte inspelad: säg böterna i stället.
-            if (!playClip(ClipLines.fineText(over, limit))) return
-        }
-        if (wantFine || text == ClipLines.fineText(over, limit)) lastBand = fine
+            // Kommentaren finns inte inspelad: säg böterna i stället (men inte under FINE_FROM).
+            if (!fineOk || !playClip(fineLine)) return
+        } else if (ClipLines.isImpact(text) && VoicePack.has(ClipLines.DRY)) followUp = ClipLines.DRY
+        if (wantFine || text == fineLine) lastBand = fine
         meters = 0.0
         count++
     }
@@ -350,7 +417,8 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
     private fun comment(over: Int): String? {
         val all = groupPhrases(mode == HeckleMode.NICE, closing = false, over = over) +
             (if (mode == HeckleMode.MEAN) ClipLines.facts(over, limit).filter { VoicePack.has(it) } else emptyList())
-        val fresh = all.filter { it !in recent }.ifEmpty { all }
+        val nyss = recent.takeLast((all.size - 1).coerceIn(0, 6)) // aldrig samma två gånger i rad om det finns fler
+        val fresh = all.filter { it !in nyss }.ifEmpty { all }
         val pick = fresh.randomOrNull() ?: return null
         recent.addLast(pick)
         while (recent.size > 6) recent.removeFirst()
@@ -358,19 +426,27 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
     }
 
     /** Spelar ett slumpat klipp för [text]. Falskt om frasen inte finns inspelad. */
-    private fun playClip(text: String, interrupt: Boolean = false): Boolean {
-        val f: File = VoicePack.clips(text).randomOrNull() ?: run { VoicePack.lastPlay.value = "Inget klipp för: $text"; return false }
-        if (interrupt) stopClip() else if (player != null) return false
+    private fun playClip(text: String, interrupt: Boolean = false, voice: String? = null): Boolean {
+        val all = VoicePack.clips(text)
+        // Samma röst som förra klippet om det önskas, annars inte exakt samma inspelning två gånger i rad.
+        val f: File = (voice?.let { v -> all.filter { VoicePack.voiceOf(it) == v } }.orEmpty()
+            .ifEmpty { all.filter { it != lastFile } }.ifEmpty { all }).randomOrNull() ?: run { VoicePack.lastPlay.value = "Inget klipp för: $text"; return false }
+        if (interrupt) { followUp = null; stopClip() } else if (player != null) return false
         return try {
             val mp = MediaPlayer()
             mp.setAudioAttributes(attrs)
             java.io.FileInputStream(f).use { mp.setDataSource(it.fd) }
-            mp.setOnCompletionListener { stopClip(); finished() }
-            mp.setOnErrorListener { _, w, x -> VoicePack.lastPlay.value = "Uppspelningsfel $w/$x: ${f.name}"; stopClip(); finished(); true }
+            mp.setOnCompletionListener {
+                stopClip()
+                val next = followUp; followUp = null
+                if (next == null || !playClip(next, voice = VoicePack.voiceOf(f))) finished()
+            }
+            mp.setOnErrorListener { _, w, x -> VoicePack.lastPlay.value = "Uppspelningsfel $w/$x: ${f.name}"; followUp = null; stopClip(); finished(); true }
             mp.prepare()
             speaking = true
             audio.requestAudioFocus(focus)
             player = mp
+            lastFile = f
             mp.start()
             VoicePack.lastPlay.value = "Spelar ${f.name}: $text"
             true
@@ -387,6 +463,7 @@ class Heckler(ctx: Context, val engine: String? = null, initialVoice: String? = 
     }
 
     fun release() {
+        followUp = null
         stopClip()
         scope.cancel()
         tts.stop()

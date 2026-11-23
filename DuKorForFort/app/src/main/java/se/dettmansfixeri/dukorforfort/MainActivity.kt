@@ -83,7 +83,14 @@ fun DataGate() {
         AutoStart.apply(ctx, SpeedTracker.settings.value)
         AppUpdater.check()
         if (SpeedTracker.settings.value.voicesOn) VoicePack.sync(ctx)
-        DataManager.checkForUpdate(ctx)
+        DataUpdates.schedule(ctx)
+        // Ny data laddas ner direkt på wifi (eller mobildata om det är tillåtet), annars kommer frågan.
+        DataManager.autoUpdate(ctx)
+    }
+    var askMobile by remember { mutableStateOf(false) }
+    fun startDownload() {
+        DataManager.dismissUpdate()
+        if (DataManager.mayDownloadNow(ctx)) scope.launch { DataManager.download(ctx) } else askMobile = true
     }
     // Kolla appversionen igen varje gång appen tas fram (den kan ha legat i bakgrunden länge).
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
@@ -100,13 +107,22 @@ fun DataGate() {
 
     val hasData = DataManager.data != null
     when {
-        dataState is DataManager.State.Downloading && !hasData ->
-            DownloadScreen((dataState as DataManager.State.Downloading).progress, null) {}
-        !hasData -> DownloadScreen(null, (dataState as? DataManager.State.Failed)?.message) {
-            scope.launch { DataManager.download(ctx) }
+        dataState is DataManager.State.Downloading && !hasData -> {
+            val d = dataState as DataManager.State.Downloading
+            DownloadScreen(d.progress, null, DataManager.kbText(d.read, d.total)) {}
         }
+        !hasData -> DownloadScreen(null, (dataState as? DataManager.State.Failed)?.message) { startDownload() }
         else -> SpeedScreen()
     }
+
+    if (askMobile) MobileDataDialog(
+        onDownload = { always ->
+            askMobile = false
+            if (always) DataManager.setMobileData(ctx, true)
+            scope.launch { DataManager.download(ctx) }
+        },
+        onCancel = { askMobile = false },
+    )
 
     val a = appUpdate
     if (a !is AppUpdater.State.None) {
@@ -120,7 +136,7 @@ fun DataGate() {
             onDismissRequest = { DataManager.dismissUpdate() },
             title = { Text("Nya hastighetsgränser") },
             text = { Text("Det finns uppdaterad data från Trafikverket (${DataManager.prettyVersion(u.version)}, ${u.size / 1048576} MB). Ladda ner nu?") },
-            confirmButton = { TextButton(onClick = { scope.launch { DataManager.download(ctx) } }) { Text("Ladda ner") } },
+            confirmButton = { TextButton(onClick = { startDownload() }) { Text("Ladda ner") } },
             dismissButton = { TextButton(onClick = { DataManager.dismissUpdate() }) { Text("Senare") } },
         )
     }
@@ -190,7 +206,28 @@ fun AppUpdateDialog(s: AppUpdater.State) {
 }
 
 @Composable
-fun DownloadScreen(progress: Float?, error: String?, onDownload: () -> Unit) {
+fun MobileDataDialog(onDownload: (always: Boolean) -> Unit, onCancel: () -> Unit) {
+    var always by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("Ladda ner med mobildata?") },
+        text = {
+            Column {
+                Text("Du är inte ansluten till wifi. Hastighetsdatan är ungefär ${DataManager.knownSize / 1048576} MB.")
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth().clickable { always = !always }, verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = always, onCheckedChange = { always = it })
+                    Text("Fråga inte igen – använd alltid mobildata")
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onDownload(always) }) { Text("Ladda ner") } },
+        dismissButton = { TextButton(onClick = onCancel) { Text("Avbryt") } },
+    )
+}
+
+@Composable
+fun DownloadScreen(progress: Float?, error: String?, detail: String? = null, onDownload: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color(0xFF101418)).safeDrawingPadding().padding(24.dp)) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
             Text("Hastighetsdata", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color.White)
@@ -205,7 +242,7 @@ fun DownloadScreen(progress: Float?, error: String?, onDownload: () -> Unit) {
             if (progress != null) {
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(8.dp))
                 Spacer(Modifier.height(12.dp))
-                Text("Laddar ner… ${(progress * 100).toInt()} %", color = Color.White.copy(alpha = 0.7f))
+                Text("Laddar ner… ${(progress * 100).toInt()} %" + (detail?.let { "  ·  $it" } ?: ""), color = Color.White.copy(alpha = 0.7f))
             } else {
                 if (error != null) {
                     Text(error, color = Color(0xFFFF8A80), fontSize = 15.sp)
@@ -246,92 +283,178 @@ private fun RadioRow(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** En rad i inställningsmenyn: rubrik, vad som är valt nu, och en pil. */
+@Composable
+private fun MenuRow(title: String, summary: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Bold)
+            Text(summary, fontSize = 13.sp, color = Dim)
+        }
+        Text("›", fontSize = 26.sp, color = Dim)
+    }
+}
+
+/** Delarna i inställningarna. */
+private enum class SettingsPage(val title: String) {
+    WARN("Varning"),
+    SOUND("Ljud och röst"),
+    VEHICLE("Fordon"),
+    AUTO("Starta automatiskt"),
+    DATA("Hastighetsdata"),
+    TESTS("Testfunktioner"),
+}
+
 @Composable
 fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () -> Unit) {
     var s by remember { mutableStateOf(current) }
     var permTick by remember { mutableIntStateOf(0) }
+    var page by remember { mutableStateOf<SettingsPage?>(null) }
+    val ctx = LocalContext.current
+    val mobileData by DataManager.mobileData.collectAsStateWithLifecycle()
+    DisposableEffect(Unit) { onDispose { Preview.stop() } } // provlyssningen tystnar när inställningarna stängs
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Inställningar") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("Varna när jag kör", fontWeight = FontWeight.Bold)
-                Text(
-                    when {
-                        s.margin == 0 -> "så fort jag är över gränsen"
-                        s.margin > 0 -> "mer än ${s.margin} km/h över gränsen"
-                        else -> "mindre än ${-s.margin} km/h under gränsen (för att prova)"
-                    },
-                    fontSize = 14.sp, color = Dim
-                )
-                Slider(
-                    value = s.margin.toFloat(),
-                    onValueChange = { s = s.copy(margin = Math.round(it)) },
-                    valueRange = SpeedTracker.MIN_MARGIN.toFloat()..SpeedTracker.MAX_MARGIN.toFloat(),
-                    steps = SpeedTracker.MAX_MARGIN - SpeedTracker.MIN_MARGIN - 1,
-                )
-                SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
-                SwitchRow("Ljud", null, s.beep) { s = s.copy(beep = it) }
-                if (s.beep) SoundMode.entries.forEach { m -> RadioRow(m.label, s.sound == m) { s = s.copy(sound = m) } }
-                SwitchRow("Förvarna när jag gasar på", "Varnar redan när du är på väg över gränsen, innan du är där", s.gasWarn) {
-                    s = s.copy(gasWarn = it)
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (page != null) TextButton(onClick = { page = null }, contentPadding = PaddingValues(end = 8.dp)) {
+                    Text("‹", fontSize = 26.sp)
                 }
-                Text("Röst", Modifier.padding(top = 6.dp))
-                Text("Pratar om du ligger över gränsen mer än 5 sekunder", fontSize = 13.sp, color = Dim)
-                Row {
-                    HeckleMode.entries.forEach { m ->
-                        Row(
-                            Modifier.clickable { s = s.copy(heckle = m) }.padding(end = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(selected = s.heckle == m, onClick = { s = s.copy(heckle = m) })
-                            Text(m.label)
+                Text(page?.title ?: "Inställningar")
+            }
+        },
+        text = {
+            // Bakåtknappen går tillbaka till menyn i stället för att stänga (måste ligga inne i dialogen).
+            androidx.activity.compose.BackHandler(enabled = page != null) { page = null }
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                when (page) {
+                    null -> {
+                        MenuRow(SettingsPage.WARN.title, buildList {
+                            add(when {
+                                s.margin == 0 -> "Vid gränsen"
+                                s.margin > 0 -> "+${s.margin} km/h"
+                                else -> "${s.margin} km/h"
+                            })
+                            if (s.vibrate) add("vibrerar")
+                            if (s.gasWarn) add("förvarnar")
+                        }.joinToString(" · ")) { page = SettingsPage.WARN }
+                        HorizontalDivider()
+                        MenuRow(SettingsPage.SOUND.title,
+                            (if (!s.beep) "Inget ljud" else s.sound.label.substringBefore(" –")) +
+                                " · röst: " + s.heckleOn.label.lowercase()) { page = SettingsPage.SOUND }
+                        HorizontalDivider()
+                        MenuRow(SettingsPage.VEHICLE.title, s.vehicle.label + if (s.trailer) " + släp" else "") { page = SettingsPage.VEHICLE }
+                        HorizontalDivider()
+                        MenuRow(SettingsPage.AUTO.title,
+                            if (s.auto == AutoMode.CAR && s.carName != null) "${s.auto.label}: ${s.carName}" else s.auto.label) { page = SettingsPage.AUTO }
+                        HorizontalDivider()
+                        MenuRow(SettingsPage.DATA.title, (if (mobileData) "Wifi och mobildata" else "Bara wifi") +
+                            (DataManager.localVersion(ctx)?.let { " · " + DataManager.prettyVersion(it) } ?: "")) { page = SettingsPage.DATA }
+                        HorizontalDivider()
+                        MenuRow(SettingsPage.TESTS.title, if (s.tests) "På" else "Av") { page = SettingsPage.TESTS }
+                        HorizontalDivider()
+                        Spacer(Modifier.height(8.dp))
+                        Text("Version ${BuildConfig.VERSION_NAME}", fontSize = 12.sp, color = Dim)
+                    }
+
+                    SettingsPage.WARN -> {
+                        Text("Varna när jag kör", fontWeight = FontWeight.Bold)
+                        Text(
+                            when {
+                                s.margin == 0 -> "så fort jag är över gränsen"
+                                s.margin > 0 -> "mer än ${s.margin} km/h över gränsen"
+                                else -> "mindre än ${-s.margin} km/h under gränsen (för att prova)"
+                            },
+                            fontSize = 14.sp, color = Dim
+                        )
+                        Slider(
+                            value = s.margin.toFloat(),
+                            onValueChange = { s = s.copy(margin = Math.round(it)) },
+                            valueRange = SpeedTracker.MIN_MARGIN.toFloat()..SpeedTracker.MAX_MARGIN.toFloat(),
+                            steps = SpeedTracker.MAX_MARGIN - SpeedTracker.MIN_MARGIN - 1,
+                        )
+                        SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
+                        SwitchRow("Förvarna när jag gasar på", "Varnar redan när du är på väg över gränsen, innan du är där", s.gasWarn) {
+                            s = s.copy(gasWarn = it)
                         }
                     }
-                }
 
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Text("Vad kör du?", fontWeight = FontWeight.Bold)
-                Vehicle.entries.forEach { v -> RadioRow(v.label, s.vehicle == v) { s = s.copy(vehicle = v) } }
-                SwitchRow("Släp/efterfordon", "Max ${Vehicle.TRAILER_MAX} km/h", s.trailer) { s = s.copy(trailer = it) }
+                    SettingsPage.SOUND -> {
+                        SwitchRow("Ljud", null, s.beep) { s = s.copy(beep = it) }
+                        if (s.beep) {
+                            SoundMode.entries.forEach { m -> RadioRow(m.label, s.sound == m) { s = s.copy(sound = m) } }
+                            OutlinedButton(onClick = { Preview.sound(ctx, s.sound) }) { Text("▶ Provlyssna ljudet") }
+                            Text(
+                                if (s.sound == SoundMode.SILENT) "Spelar du musik pausas den i 4 sekunder, annars hörs pipet."
+                                else "Låter som 2, 5 och sedan 10 km/h över.",
+                                fontSize = 12.sp, color = Dim
+                            )
+                        }
+                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                        Text("Röst", fontWeight = FontWeight.Bold)
+                        Text(if (s.silentOn) "Tyst läge är valt – rösten är av" else "Pratar om du ligger över gränsen mer än 5 sekunder", fontSize = 13.sp, color = Dim)
+                        HeckleMode.entries.forEach { m -> RadioRow(m.label, s.heckle == m) { s = s.copy(heckle = m) } }
+                        if (s.heckle != HeckleMode.OFF && !s.silentOn) OutlinedButton(onClick = {
+                            Preview.stop()
+                            SpeedTracker.prepareVoice(ctx).preview(s.heckle, s.voicesOn)
+                        }) { Text("▶ Provlyssna rösten") }
+                    }
 
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Text("Starta automatiskt", fontWeight = FontWeight.Bold)
-                AutoMode.entries.forEach { m -> RadioRow(m.label, s.auto == m) { s = s.copy(auto = m) } }
-                when (s.auto) {
-                    AutoMode.DRIVING -> Text(
-                        "Startar när telefonen märker att du åker, och bevakar när du kör över " +
-                                "${SpeedTracker.AUTO_ARM_KMH} km/h. Åker du buss eller taxi: tryck \"Jag kör inte\" i notisen.",
-                        fontSize = 13.sp, color = Dim
-                    )
-                    AutoMode.CAR -> CarPicker(s, permTick) { addr, name -> s = s.copy(carAddress = addr, carName = name) }
-                    AutoMode.OFF -> {}
-                }
-                if (s.auto != AutoMode.OFF) AutoPermissions(s.auto, permTick) { permTick++ }
+                    SettingsPage.VEHICLE -> {
+                        Text("Vad kör du?", fontWeight = FontWeight.Bold)
+                        Vehicle.entries.forEach { v -> RadioRow(v.label, s.vehicle == v) { s = s.copy(vehicle = v) } }
+                        SwitchRow("Släp/efterfordon", "Max ${Vehicle.TRAILER_MAX} km/h", s.trailer) { s = s.copy(trailer = it) }
+                    }
 
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                SwitchRow("Testfunktioner", "Saker som provas. De kan ha fel.", s.tests) { s = s.copy(tests = it) }
-                if (s.tests) {
-                    Column(Modifier.padding(start = 16.dp)) {
-                        SwitchRow("Förvarna om lägre gräns (TEST)",
-                            "Tick-tick när du behöver släppa gasen inför en lägre gräns", s.testAhead) { s = s.copy(testAhead = it) }
-                        if (s.testAhead) {
+                    SettingsPage.AUTO -> {
+                        AutoMode.entries.forEach { m -> RadioRow(m.label, s.auto == m) { s = s.copy(auto = m) } }
+                        when (s.auto) {
+                            AutoMode.DRIVING -> Text(
+                                "Startar när telefonen märker att du åker, och bevakar när du kör över " +
+                                        "${SpeedTracker.AUTO_ARM_KMH} km/h. Åker du buss eller taxi: tryck \"Jag kör inte\" i notisen.",
+                                fontSize = 13.sp, color = Dim
+                            )
+                            AutoMode.CAR -> CarPicker(s, permTick) { addr, name -> s = s.copy(carAddress = addr, carName = name) }
+                            AutoMode.OFF -> {}
+                        }
+                        if (s.auto != AutoMode.OFF) AutoPermissions(s.auto, permTick) { permTick++ }
+                    }
+
+                    SettingsPage.DATA -> {
+                        Text(DataManager.localVersion(ctx)?.let { "Data från ${DataManager.prettyVersion(it)}" } ?: "Ingen data", fontWeight = FontWeight.Bold)
+                        Text("Ny data hämtas av sig själv en gång per dygn, även när appen är stängd.", fontSize = 13.sp, color = Dim)
+                        Spacer(Modifier.height(8.dp))
+                        SwitchRow("Får använda mobildata",
+                            "Av: bara på wifi. Datan är ungefär ${DataManager.knownSize / 1048576} MB.", mobileData) {
+                            DataManager.setMobileData(ctx, it)
+                        }
+                    }
+
+                    SettingsPage.TESTS -> {
+                        SwitchRow("Testfunktioner", "Saker som provas. De kan ha fel.", s.tests) { s = s.copy(tests = it) }
+                        if (s.tests) {
                             Column(Modifier.padding(start = 16.dp)) {
-                                SwitchRow("Lär dig bilens inbromsning",
-                                    "Mäter hur fort bilen tappar fart när du släpper gasen", s.testLearnBrake) { s = s.copy(testLearnBrake = it) }
+                                SwitchRow("Förvarna om lägre gräns (TEST)",
+                                    "Säger t.ex. \"Nu blir det 40 här framme\" när det är dags att släppa gasen inför en lägre gräns (tickar om rösten inte går)", s.testAhead) { s = s.copy(testAhead = it) }
+                                if (s.testAhead) {
+                                    Column(Modifier.padding(start = 16.dp)) {
+                                        SwitchRow("Lär dig bilens inbromsning",
+                                            "Mäter hur fort bilen tappar fart när du släpper gasen", s.testLearnBrake) { s = s.copy(testLearnBrake = it) }
+                                    }
+                                }
+                                SwitchRow("Visa vad appen tror (TEST)",
+                                    "T.ex. \"Landar på 73 km/h\" eller \"50 om 230 m – släpp om 80 m\"", s.testShowGuess) { s = s.copy(testShowGuess = it) }
+                                SwitchRow("Gemini-röster (TEST)",
+                                    "Inspelade röster i stället för telefonens talsyntes. Säger böterna och kommentarer som är godkända.",
+                                    s.testVoices) { s = s.copy(testVoices = it) }
+                                if (s.testVoices) VoicePackStatus()
                             }
                         }
-                        SwitchRow("Visa vad appen tror (TEST)",
-                            "T.ex. \"Landar på 73 km/h\" eller \"50 om 230 m – släpp om 80 m\"", s.testShowGuess) { s = s.copy(testShowGuess = it) }
-                        SwitchRow("Gemini-röster (TEST)",
-                            "Inspelade röster i stället för telefonens talsyntes. Säger böterna och kommentarer som är godkända.",
-                            s.testVoices) { s = s.copy(testVoices = it) }
-                        if (s.testVoices) VoicePackStatus()
                     }
                 }
-
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Text("Version ${BuildConfig.VERSION_NAME}", fontSize = 12.sp, color = Dim)
             }
         },
         confirmButton = { TextButton(onClick = { onDone(s) }) { Text("Klar") } },
@@ -543,7 +666,7 @@ fun SpeedScreen() {
             Text(
                 when (ds) {
                     is DataManager.State.Ready -> "Data från ${DataManager.prettyVersion(ds.version)}"
-                    is DataManager.State.Downloading -> "Uppdaterar data… ${(ds.progress * 100).toInt()} %"
+                    is DataManager.State.Downloading -> "Uppdaterar data… ${DataManager.kbText(ds.read, ds.total)}"
                     is DataManager.State.Failed -> "Uppdateringen misslyckades: ${ds.message}"
                     else -> ""
                 },
@@ -585,7 +708,7 @@ fun SpeedScreen() {
             }
         } else {
             Column(
-                Modifier.fillMaxSize(),
+                Modifier.fillMaxSize().padding(bottom = 84.dp), // plats för musikknapparna
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -596,6 +719,8 @@ fun SpeedScreen() {
                 StatusBlock()
             }
         }
+        // Musikknappar längst ner, så man kan byta låt utan att lämna appen.
+        MediaControls(Modifier.align(if (landscape) Alignment.BottomEnd else Alignment.BottomCenter))
     }
 
     if (showSettings) {

@@ -291,3 +291,9 @@
 1 | Behöver du tvärnita nu så krockar du i 92 kilometer i timmen, där du istället hade hunnit stanna om du hållit hastigheten.
 1 | Behöver du tvärnita nu så krockar du i 95 kilometer i timmen, där du istället hade hunnit stanna om du hållit hastigheten.
 1 | Behöver du tvärnita nu så krockar du i 98 kilometer i timmen, där du istället hade hunnit stanna om du hållit hastigheten.
+## Beröm
+8 | Du har hållit hastigheten en lång stund. Jag är nästan imponerad.
+8 | Kolla, du kan ju hålla hastigheten. Vem hade trott det?
+## Snäll beröm @ Lugn, vänlig och omtänksam. Jämnt tempo.
+8 | Snyggt. Du har hållit hastigheten en bra stund nu.
+8 | Bra jobbat, du ligger precis rätt.

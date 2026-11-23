@@ -129,6 +129,8 @@ class BrakeLearner {
 object Ahead {
     /** Reaktionstid (s) innan man släpper gasen. */
     const val REACTION_S = 1.0
+    /** Så länge (s) det tar att säga "Nu blir det 40 här framme." – man släpper gasen när frasen är slut. */
+    const val SPEAK_S = 2.0
     /** Så långt fram (m) letar den. */
     const val MAX_DIST = 800.0
     /** Större sväng än så (grader) räknas inte som att vägen fortsätter. */

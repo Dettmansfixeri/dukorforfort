@@ -44,7 +44,7 @@ on:
       grupper:
         description: "Bara de här grupperna ur fraslistan (tomt = alla)"
         required: false
-        default: "Förvarning, EPA, Snäll EPA, Torrt väglag, Krockfart"
+        default: "Förvarning, EPA, Snäll EPA, Torrt väglag, Krockfart, Beröm, Snäll beröm"
       fraser:
         description: "Fraser (| emellan)"
         default: "Det här kostar dig ett tusen femhundra kronor i böter.|Det här kostar dig två tusen kronor i böter.|Det här kostar dig två tusen fyrahundra kronor i böter.|Det här kostar dig två tusen åttahundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter.|Det här kostar dig tre tusen sexhundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig tre tusen sexhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig fyra tusen kronor i böter. Plus busskort i minst två månader."

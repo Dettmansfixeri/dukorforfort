@@ -65,6 +65,8 @@ class Warner(ctx: Context) {
         if (Build.VERSION.SDK_INT >= 31) ctx.getSystemService(VibratorManager::class.java)?.defaultVibrator
         else @Suppress("DEPRECATION") ctx.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     private val beeper = Beeper()
+    private val music = MusicStopper(ctx)
+    private var musicWhenOver: Boolean? = null // tyst läge: spelades musik när man gick över?
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val attrs = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build()
 
@@ -117,7 +119,13 @@ class Warner(ctx: Context) {
     }
 
     private fun apply(over: Int) {
-        beeper.play(if (settings.beep) Beeper.pattern(over, sirenAt, settings.sound == SoundMode.TONE) else null)
+        // Tyst läge: spelas musik pausas den (inget pip) så länge man är över och fortsätter direkt man är under.
+        // Spelas ingen musik piper det som vanligt.
+        if (over <= 0) musicWhenOver = null
+        else if (musicWhenOver == null) musicWhenOver = settings.silentOn && music.otherMusicPlaying()
+        val pauseMusic = settings.silentOn && musicWhenOver == true
+        music.hold(pauseMusic)
+        beeper.play(if (settings.beep && !pauseMusic) Beeper.pattern(over, sirenAt, settings.sound == SoundMode.TONE) else null)
         val newLevel = over.coerceIn(0, CONTINUOUS)
         if (newLevel == level && settings.vibrate == vibrateOn) return
         val rising = newLevel > level
@@ -165,6 +173,8 @@ class Warner(ctx: Context) {
         scope.cancel()
         beeper.stop()
         clicker.stop()
+        music.hold(false)
+        musicWhenOver = null
         clickPeriod = null
         level = 0
     }
