@@ -16,11 +16,12 @@ button{cursor:pointer}button:hover{border-color:#888}
 .k.fel{border-color:#e05050;background:#2a1414}
 .k .flagga{display:flex;align-items:center;gap:4px;color:#e88;font-size:.8em;cursor:pointer;min-width:0}
 .k .flagga input{width:16px;height:16px;accent-color:#e05050}
-.k label{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:190px}
+.k label{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:215px}
 .k input{width:20px;height:20px;accent-color:#ffcc00}
-.nr{font-weight:700;font-variant-numeric:tabular-nums;color:#ffcc00}
+.nr{font-weight:700;font-variant-numeric:tabular-nums;color:#ffcc00;min-width:2.4em;text-align:right}
 .om{color:#bbb;font-size:.85em}
-audio{height:32px;width:220px}
+audio{height:32px;width:220px;flex:0 1 220px;min-width:140px}
+@media (min-width:900px){.k{flex-wrap:nowrap}}
 .val{position:fixed;left:0;right:0;bottom:0;background:#1a1a1a;border-top:2px solid #ffcc00;padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .val input{flex:1;min-width:200px;font-family:ui-monospace,monospace}
 .val .rad{display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%}
