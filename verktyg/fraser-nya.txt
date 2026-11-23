@@ -316,3 +316,19 @@
 1 | Din stoppsträcka är 34 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Där du hade stannat i 120 kör du nu på i 98 kilometer i timmen.
 1 | Din stoppsträcka är 53 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
+## Förvarning @ Lugn, tydlig och saklig, som en navigator.
+2 | Nu blir det 10 här framme.
+2 | Nu blir det 20 här framme.
+2 | Nu blir det 30 här framme.
+2 | Nu blir det 40 här framme.
+2 | Nu blir det 50 här framme.
+2 | Nu blir det 60 här framme.
+2 | Nu blir det 70 här framme.
+2 | Nu blir det 80 här framme.
+2 | Nu blir det 90 här framme.
+2 | Nu blir det 100 här framme.
+2 | Nu blir det 110 här framme.
+## EPA
+8 | Över trettio räknas din EPA som en bil. Utan B-körkort är det olovlig körning.
+## Snäll EPA @ Lugn, vänlig och omtänksam. Jämnt tempo.
+8 | Över trettio räknas din EPA som en bil, och då behöver du B-körkort.
