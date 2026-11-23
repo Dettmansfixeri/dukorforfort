@@ -190,7 +190,7 @@ object ClipLines {
 
     /** Beröm när man hållit gränsen en stund (snäll eller syrlig). */
     fun praise(nice: Boolean): List<String> =
-        if (nice) listOf("Snyggt. Du har hållit hastigheten en bra stund nu.", "Bra jobbat, du ligger precis rätt.")
+        if (nice) listOf("Snyggt. Du har hållit hastigheten en bra stund nu.", "Bra jobbat, fortsätt så.", "Bra jobbat, lugnt och fint.")
         else listOf("Du har hållit hastigheten en lång stund. Jag är nästan imponerad.", "Kolla, du kan ju hålla hastigheten. Vem hade trott det?")
 
     /** Krockfarten när man tvärnitar där man hade stannat om man hållit gränsen. Följs av [DRY]. */

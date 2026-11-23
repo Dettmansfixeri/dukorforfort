@@ -296,4 +296,6 @@
 8 | Kolla, du kan ju hålla hastigheten. Vem hade trott det?
 ## Snäll beröm @ Lugn, vänlig och omtänksam. Jämnt tempo.
 8 | Snyggt. Du har hållit hastigheten en bra stund nu.
-8 | Bra jobbat, du ligger precis rätt.
+## Mer snällt beröm @ Lugn, vänlig och omtänksam. Jämnt tempo.
+8 | Bra jobbat, fortsätt så.
+8 | Bra jobbat, lugnt och fint.
