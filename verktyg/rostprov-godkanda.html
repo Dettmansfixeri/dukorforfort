@@ -34,7 +34,7 @@ const BELOPP = { 'ett tusen femhundra': 1500, 'två tusen': 2000, 'två tusen fy
   'tre tusen tvåhundra': 3200, 'tre tusen sexhundra': 3600, 'fyra tusen': 4000 };
 const belopp = (f) => { const m = /kostar dig (.+?) kronor/.exec(f); return m ? (BELOPP[m[1]] || 0) : 0; };
 const tal = (f) => { const m = /\d+/.exec(f); return m ? +m[0] : 0; };
-const TYP = ['Där du hade stannat', 'Du sparar', 'Din stoppsträcka', 'Nu har du ökat luftmotståndet'];
+const TYP = ['Behöver du tvärnita', 'Du sparar', 'Din stoppsträcka', 'Nu har du ökat luftmotståndet'];
 const typ = (f) => { const i = TYP.findIndex((t) => f.startsWith(t)); return i < 0 ? 9 : i; };
 const FASTA = ['Du kör för fort, IDIOT!', 'Är gaspedalen fastlimmad, eller?', 'Tror du att skyltarna är förslag?',
   'Grattis. Du är officiellt en fartdåre.', 'Jag är bara en app, MEN jag skäms ändå å dina vägnar.',
@@ -45,7 +45,7 @@ function frasOrdning(g, f) {
   if (g === 'Böter') return [f.includes('busskort') ? 1 : 0, belopp(f)];
   if (/skylten/i.test(g)) return [tal(f), 0];
   if (g === 'Fasta kommentarer') { const i = FASTA.indexOf(f); return [i < 0 ? 99 : i, 0]; }
-  return [typ(f), tal(f.replace(/^Där du hade stannat i \d+/, ''))];   // vägarna: per sorts fakta, sedan siffran
+  return [typ(f), tal(f)];   // vägarna: per sorts fakta, sedan siffran
 }
 const nar = (g, f) => g !== 'Böter' ? '' : (f.includes('busskort') ? 'körkortet ryker' : '');
 

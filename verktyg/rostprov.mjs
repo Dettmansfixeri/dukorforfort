@@ -314,7 +314,9 @@ if (!process.env.LOKALT) {
   const PAKET = path.join(UT, 'paket');
   fs.mkdirSync(PAKET, { recursive: true });
   const manifest = { version: new Date().toISOString(), klipp: [] };
-  for (const k of bib.klipp.filter((x) => x.godkand && !x.ersatt)) {
+  // Fraser som appen inte säger längre följer inte med i paketet (klippen ligger kvar i biblioteket).
+  const UTGATT = [/^Där du hade stannat i /];   // ersatt 2026-11-23 av "Behöver du tvärnita nu …"
+  for (const k of bib.klipp.filter((x) => x.godkand && !x.ersatt && !UTGATT.some((r) => r.test(x.fras)))) {
     let kalla = path.join(UT, k.fil);
     let tmp = false;
     if (!fs.existsSync(kalla)) {
