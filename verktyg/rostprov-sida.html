@@ -57,8 +57,9 @@ h1.grupp{font-size:1.5em;margin:1.6em 0 .2em;padding:6px 10px;background:#ffcc00
   </div>
   <div class="rad felrad">
     <span id="antalFel">0 att göra om</span>
-    <input id="felkoder" readonly placeholder="Klistra in i Röstprov, fältet Gör om">
+    <input id="felkoder" placeholder="Skriv eller ta bort nummer – listan följer med kryssen">
     <button id="kopieraFel">Kopiera</button>
+    <button id="rensaFel">Rensa</button>
   </div>
 </div>
 <script>
@@ -117,7 +118,7 @@ function spara() {
   try { localStorage.setItem('rostuttal', JSON.stringify([...uttal])); } catch (e) {}
   try { localStorage.setItem('rostavhugg', JSON.stringify([...avhugg])); localStorage.setItem('rostejavhugg', JSON.stringify([...ejAvhugg])); } catch (e) {}
   const fl = [...new Set([...fel, ...uttal, ...klipp.filter((k) => autoGorOm(k) || arMarkeradAvhuggen(k)).map((k) => k.nr)])]
-    .filter((nr) => { const k = klipp.find((x) => x.nr === nr); return k && !k.ersatt && !k.bort; }).sort();
+    .filter((nr) => { const k = klipp.find((x) => x.nr === nr); return k && !k.ersatt && !k.bort; }).sort((a, b) => a - b);
   $('felkoder').value = fl.join(', ');
   $('antalFel').textContent = fl.length + ' att göra om';
   try { localStorage.setItem('rosthord', JSON.stringify([...hord])); } catch (e) {}
@@ -246,6 +247,23 @@ function kopiera(knapp, ruta) {
 }
 kopiera('kopiera', 'koder');
 kopiera('kopieraFel', 'felkoder');
+/** Gör om-raden går att ändra för hand: de nummer som står där ska göras om, inga andra. */
+function sattGorOm(text) {
+  const nya = new Set((text.match(/\d+/g) || []).map((n) => n.padStart(3, '0')).filter((nr) => klipp.some((k) => k.nr === nr && !k.ersatt && !k.bort)));
+  for (const k of klipp) {
+    const nr = k.nr;
+    if (nya.has(nr)) { fel.add(nr); ejGorOm.delete(nr); }
+    else { fel.delete(nr); uttal.delete(nr); avhugg.delete(nr); ejGorOm.add(nr); if (arAvhugget(k)) ejAvhugg.add(nr); }
+  }
+  try { localStorage.setItem('rostejgorom', JSON.stringify([...ejGorOm])); } catch (e) {}
+  const y = window.scrollY; spara(); rita(); window.scrollTo(0, y);
+}
+$('felkoder').addEventListener('change', (e) => sattGorOm(e.target.value));
+$('felkoder').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); });
+$('rensaFel').addEventListener('click', () => {
+  if (!$('felkoder').value.trim() || !confirm('Töm listan med klipp att göra om?')) return;
+  sattGorOm('');
+});
 $('rensa').addEventListener('click', () => {
   if (!valda.size || !confirm('Ta bort alla kryss?')) return;
   valda.clear(); spara(); rita();
