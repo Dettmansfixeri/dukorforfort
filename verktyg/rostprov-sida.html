@@ -95,6 +95,7 @@ const arMarkeradAvhuggen = (k) => avhugg.has(k.nr) || (arAvhugget(k) && !ejAvhug
 function arLangt(k) {
   const s = langd[k.nr];
   if (s == null) return false;
+  if (k.grupp === 'Förvarning') return s > 2.4;   // ska vara kort, högst 2,4 s
   const andra = klipp.filter((o) => o.fras === k.fras && langd[o.nr] != null).map((o) => langd[o.nr]).sort((a, b) => a - b);
   if (andra.length < 4) return false;
   const median = andra[Math.floor(andra.length / 2)];

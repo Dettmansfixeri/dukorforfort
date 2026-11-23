@@ -36,7 +36,7 @@ on:
       gor_om:
         description: "Gör om: nummer på klipp som ska spelas in igen (kommatecken emellan). Görs tillsammans med fraslistan."
         required: false
-        default: "900, 901, 929, 931, 932, 965, 968, 972, 980, 985, 995, 1009"
+        default: ""
       fraslista:
         description: "Fil med nya fraser, t.ex. verktyg/fraser-nya.txt (tomt = inga nya fraser)"
         required: false
@@ -44,7 +44,7 @@ on:
       grupper:
         description: "Bara de här grupperna ur fraslistan (tomt = alla)"
         required: false
-        default: "Förvarning, EPA, Snäll EPA, Torrt väglag, Krockfart, Beröm, Snäll beröm"
+        default: "Förvarning"
       fraser:
         description: "Fraser (| emellan)"
         default: "Det här kostar dig ett tusen femhundra kronor i böter.|Det här kostar dig två tusen kronor i böter.|Det här kostar dig två tusen fyrahundra kronor i böter.|Det här kostar dig två tusen åttahundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter.|Det här kostar dig tre tusen sexhundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig tre tusen sexhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig fyra tusen kronor i böter. Plus busskort i minst två månader."

@@ -182,7 +182,11 @@ object ClipLines {
      * Förvarningen om lägre gräns [kmh]. Den sägs när det är dags att släppa gasen, så tidpunkten
      * följer redan farten – därför behövs inget avstånd i frasen.
      */
-    fun aheadText(kmh: Int): String = "Nu blir det $kmh här framme."
+    fun aheadText(kmh: Int): String = "Nu blir det ${AHEAD_WORDS[kmh] ?: kmh}."
+
+    /** Utskrivet i ord så att rösten säger "hundra", inte "etthundra". */
+    private val AHEAD_WORDS = mapOf(10 to "tio", 20 to "tjugo", 30 to "trettio", 40 to "fyrtio", 50 to "femtio",
+        60 to "sextio", 70 to "sjuttio", 80 to "åttio", 90 to "nittio", 100 to "hundra", 110 to "hundratio", 120 to "hundratjugo")
 
     /** Beröm när man hållit gränsen en stund (snäll eller syrlig). */
     fun praise(nice: Boolean): List<String> =

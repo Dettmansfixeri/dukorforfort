@@ -163,11 +163,13 @@ if (FRASLISTA && modeller.length) {
     const gl = grupp.toLowerCase();
     if (bara.length && !bara.some((b) => gl === b || gl.startsWith(b + ' '))) continue;
     const m = /^(\d+)\s*\|\s*(.+)$/.exec(rad);
-    const antal = m ? Math.min(+m[1], roster.length) : roster.length;
+    // Fler än antalet röster = flera tagningar per röst (t.ex. 16 med 8 röster = 2 var).
+    const antal = m ? Math.min(+m[1], roster.length * 5) : roster.length;
     const fras = m ? m[2] : rad;
     for (let i = 0; i < antal; i++) {
       const rost = roster[tur++ % roster.length];
-      for (const modell of modeller) for (let t = 1; t <= tagningar; t++) jobb.push({ fras, rost, modell, t, grupp, stil: gruppStil });
+      const varv = Math.floor(i / roster.length) * tagningar;
+      for (const modell of modeller) for (let t = 1; t <= tagningar; t++) jobb.push({ fras, rost, modell, t: varv + t, grupp, stil: gruppStil });
     }
   }
 } else if (!GOR_OM.length) {
