@@ -14,6 +14,8 @@ button{cursor:pointer}button:hover{border-color:#888}
 .k{display:flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%;box-sizing:border-box;background:#1b1b1b;border:1px solid #2c2c2c;border-radius:8px;padding:6px 10px}
 .k.vald{border-color:#ffcc00;background:#2a2510}
 .k.fel{border-color:#e05050;background:#2a1414}
+.k.ejvill{opacity:.45;border-style:dashed}
+.k .flagga.ej{color:#aaa}.k .flagga.ej input{accent-color:#888}
 .k .flagga{display:flex;align-items:center;gap:4px;color:#e88;font-size:.8em;cursor:pointer;min-width:0}
 .k .flagga input{width:16px;height:16px;accent-color:#e05050}
 .k label{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:215px}
@@ -62,12 +64,18 @@ h1.grupp{font-size:1.5em;margin:1.6em 0 .2em;padding:6px 10px;background:#ffcc00
     <button id="kopieraFel">Kopiera</button>
     <button id="rensaFel">Rensa</button>
   </div>
+  <div class="rad">
+    <button id="skicka" style="font-weight:700">Skicka val till GitHub</button>
+    <span class="info">Öppnar GitHub med dina val ifyllda – tryck "Commit changes". Klipp som varken är godkända eller ska göras om tas bort.</span>
+  </div>
 </div>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 let valda = new Set();
 try { valda = new Set(JSON.parse(localStorage.getItem('rostval') || '[]')); } catch (e) {}
+let ejVill = new Set();   // klipp man inte vill ha (tas bort)
+try { ejVill = new Set(JSON.parse(localStorage.getItem('rostejvill') || '[]')); } catch (e) {}
 let fel = new Set();   // klipp som låter fel (läser upp stilen, säger fel tal …)
 try { fel = new Set(JSON.parse(localStorage.getItem('rostfel') || '[]')); } catch (e) {}
 let hord = new Set();  // klipp man spelat upp (markeras automatiskt)
@@ -86,12 +94,12 @@ let uttal = new Set();   // klipp med fel uttal (görs också om)
 try { uttal = new Set(JSON.parse(localStorage.getItem('rostuttal') || '[]')); } catch (e) {}
 let ejGorOm = new Set();   // automatiskt flaggade som man ändå godkänt (kryssat ur 'gör om')
 try { ejGorOm = new Set(JSON.parse(localStorage.getItem('rostejgorom') || '[]')); } catch (e) {}
-const autoGorOm = (k) => !k.bort && !k.ersatt && !valda.has(k.nr) && !ejGorOm.has(k.nr) && arLangt(k);
+const autoGorOm = (k) => !k.bort && !k.ersatt && !valda.has(k.nr) && !ejVill.has(k.nr) && !ejGorOm.has(k.nr) && arLangt(k);
 let avhugg = new Set();   // markerade som avhuggna själv
 let ejAvhugg = new Set(); // mätningen sa avhugget, men man har kryssat ur
 try { avhugg = new Set(JSON.parse(localStorage.getItem('rostavhugg') || '[]')); } catch (e) {}
 try { ejAvhugg = new Set(JSON.parse(localStorage.getItem('rostejavhugg') || '[]')); } catch (e) {}
-const arMarkeradAvhuggen = (k) => avhugg.has(k.nr) || (arAvhugget(k) && !ejAvhugg.has(k.nr) && !valda.has(k.nr));
+const arMarkeradAvhuggen = (k) => avhugg.has(k.nr) || (arAvhugget(k) && !ejAvhugg.has(k.nr) && !valda.has(k.nr) && !ejVill.has(k.nr));
 function arLangt(k) {
   const s = langd[k.nr];
   if (s == null) return false;
@@ -111,7 +119,7 @@ function visaLangd(fras) {
 }
 
 function spara() {
-  try { localStorage.setItem('rostval', JSON.stringify([...valda])); } catch (e) {}
+  try { localStorage.setItem('rostval', JSON.stringify([...valda])); localStorage.setItem('rostejvill', JSON.stringify([...ejVill])); } catch (e) {}
   const lista = [...valda].sort();
   $('koder').value = lista.join(', ');
   $('antal').textContent = lista.length + (lista.length === 1 ? ' vald' : ' valda');
@@ -159,7 +167,7 @@ function rita() {
     html += `<h2>${esc(fras)}</h2><div class="klipp">`;
     for (const k of lista) {
       const v = valda.has(k.nr), f = fel.has(k.nr) || autoGorOm(k), h = hord.has(k.nr);
-      html += `<div class="k${v ? ' vald' : ''}${f || uttal.has(k.nr) || arMarkeradAvhuggen(k) ? ' fel' : ''}${h ? ' lyssnad' : ''}" data-k="${esc(k.nr)}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
+      html += `<div class="k${v ? ' vald' : ''}${ejVill.has(k.nr) ? ' ejvill' : ''}${f || uttal.has(k.nr) || arMarkeradAvhuggen(k) ? ' fel' : ''}${h ? ' lyssnad' : ''}" data-k="${esc(k.nr)}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
         <label><input type="checkbox" data-nr="${esc(k.nr)}"${v ? ' checked' : ''}>
         <span class="nr">${esc(k.nr)}</span>
         <span>${esc(k.rost)}<br><span class="om">${esc(k.modell)} · ${esc(k.skapad)}</span></span></label>
@@ -168,14 +176,50 @@ function rita() {
         <span class="hord">${h ? '✓ lyssnad' : ''}</span>
         <label class="flagga" title="Klippet tar slut mitt i ett ord – spelas in igen"><input type="checkbox" data-avhugg="${esc(k.nr)}"${arMarkeradAvhuggen(k) ? ' checked' : ''}>avhugget</label>
         <label class="flagga" title="Fel uttal – spelas in igen"><input type="checkbox" data-uttal="${esc(k.nr)}"${uttal.has(k.nr) ? ' checked' : ''}>fel uttal</label>
-        <label class="flagga" title="Spela in igen: läser upp stilen, huggs av …"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>gör om</label></div>`;
+        <label class="flagga" title="Spela in igen: läser upp stilen, huggs av …"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>gör om</label>
+        <label class="flagga ej" title="Klippet ska inte användas – tas bort"><input type="checkbox" data-ej="${esc(k.nr)}"${ejVill.has(k.nr) ? ' checked' : ''}>vill inte ha</label></div>`;
     }
     html += '</div>';
   }
   $('lista').innerHTML = html || '<p class="tom">Inga klipp att visa.</p>';
 }
 
+// Kryssen på ett klipp utesluter varandra: godkänd, "vill inte ha" och gör om-kryssen (avhugget, fel uttal, gör om).
+function avGodkand(kort, nr) {
+  if (!valda.has(nr)) return;
+  valda.delete(nr);
+  const box = kort.querySelector('[data-nr]'); if (box) box.checked = false;
+  kort.classList.remove('vald');
+}
+function avEjVill(kort, nr) {
+  if (!ejVill.delete(nr)) return;
+  const box = kort.querySelector('[data-ej]'); if (box) box.checked = false;
+  kort.classList.remove('ejvill');
+}
+function avGorOm(kort, nr) {
+  const k = klipp.find((x) => x.nr === nr);
+  fel.delete(nr); uttal.delete(nr); avhugg.delete(nr); ejGorOm.add(nr);
+  if (k && arAvhugget(k)) ejAvhugg.add(nr);
+  try { localStorage.setItem('rostejgorom', JSON.stringify([...ejGorOm])); } catch (err) {}
+  for (const s of ['[data-fel]', '[data-uttal]', '[data-avhugg]']) { const box = kort.querySelector(s); if (box) box.checked = false; }
+  kort.classList.remove('fel');
+}
 $('lista').addEventListener('change', (e) => {
+  const kort = e.target.closest && e.target.closest('.k');
+  const d = e.target.dataset || {};
+  const knr = d.avhugg || d.uttal || d.fel || d.ej || d.nr;
+  if (kort && knr && e.target.checked) {
+    if (d.avhugg || d.uttal || d.fel) { avGodkand(kort, knr); avEjVill(kort, knr); }
+    else if (d.ej) { avGodkand(kort, knr); avGorOm(kort, knr); }
+    else if (d.nr) { avEjVill(kort, knr); avGorOm(kort, knr); }
+  }
+  const enr = d.ej;
+  if (enr) {
+    if (e.target.checked) ejVill.add(enr); else ejVill.delete(enr);
+    kort.classList.toggle('ejvill', e.target.checked);
+    spara();
+    return;
+  }
   const anr = e.target.dataset && e.target.dataset.avhugg;
   if (anr) {
     const k = klipp.find((x) => x.nr === anr);
@@ -271,6 +315,26 @@ $('rensa').addEventListener('click', () => {
   valda.clear(); spara(); rita();
 });
 
+// Skicka val: en ny fil i verktyg/val/ på GitHub med godkända, gör om och bortvalda.
+// Röstprov läser alla sådana filer, så inga listor behöver kopieras.
+$('skicka').addEventListener('click', () => {
+  const vantar = klipp.filter((k) => !k.godkand && !k.bort && !k.ersatt && !k.gorom).map((k) => k.nr);
+  const gorOm = ($('felkoder').value.match(/\d+/g) || []).map((n) => n.padStart(3, '0')).filter((nr) => !ejVill.has(nr));
+  const godk = [...valda].filter((nr) => !gorOm.includes(nr)).sort((a, b) => a - b);
+  const bortval = vantar.filter((nr) => !valda.has(nr) && !gorOm.includes(nr)).sort((a, b) => a - b);
+  if (!godk.length && !gorOm.length) { alert('Inga val att skicka.'); return; }
+  if (!confirm(`Skicka ${godk.length} godkända, ${gorOm.length} att göra om och ${bortval.length} som tas bort?`)) return;
+  const nu = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  const namn = `${nu.getFullYear()}-${p(nu.getMonth() + 1)}-${p(nu.getDate())}-${p(nu.getHours())}${p(nu.getMinutes())}${p(nu.getSeconds())}.txt`;
+  const text = `# Val från lyssningssidan ${nu.toLocaleString('sv-SE')}
+godkända: ${godk.join(', ')}
+gör om: ${gorOm.join(', ')}
+ta bort: ${bortval.join(', ')}
+`;
+  window.open('https://github.com/Dettmansfixeri/dukorforfort/new/main/verktyg/val?filename=' + encodeURIComponent(namn) + '&value=' + encodeURIComponent(text), '_blank');
+});
+
 fetch('bibliotek.json', { cache: 'no-store' }).then((r) => r.json()).then((b) => {
   klipp = b.klipp;
   for (const k of klipp) if (typeof k.sek === 'number') langd[k.nr] = k.sek;   // längd uträknad av Röstprov
@@ -278,7 +342,7 @@ fetch('bibliotek.json', { cache: 'no-store' }).then((r) => r.json()).then((b) =>
   // eller lagda för att göras om tas bort ur kryssen (de är redan omhändertagna).
   const klara = new Set(klipp.filter((k) => k.godkand || k.bort || k.ersatt || k.gorom).map((k) => k.nr));
   const finns = new Set(klipp.map((k) => k.nr));
-  for (const s of [valda, fel, uttal, avhugg, ejGorOm]) for (const nr of [...s]) if (klara.has(nr) || !finns.has(nr)) s.delete(nr);
+  for (const s of [valda, ejVill, fel, uttal, avhugg, ejGorOm]) for (const nr of [...s]) if (klara.has(nr) || !finns.has(nr)) s.delete(nr);
   try { localStorage.setItem('rostejgorom', JSON.stringify([...ejGorOm])); } catch (e) {}
   const unika = (f) => [...new Set(klipp.map(f))].sort();
   for (const v of unika((k) => k.rost)) $('fRost').insertAdjacentHTML('beforeend', `<option>${esc(v)}</option>`);

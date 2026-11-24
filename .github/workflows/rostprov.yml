@@ -34,9 +34,9 @@ on:
         required: false
         default: "gemini-pro"
       gor_om:
-        description: "Gör om: nummer på klipp som ska spelas in igen (kommatecken emellan). Görs tillsammans med fraslistan."
+        description: "Gör om (tomt = det som är markerat gör om: verktyg/rostgorom.txt och val skickade från lyssningssidan). Eller skriv nummer, kommatecken emellan."
         required: false
-        default: "944, 1028, 1030, 1035, 1038, 1068, 1079, 1088, 1091, 1095, 1096, 1097, 1098, 1101, 1102, 1103, 1105, 1109, 1110, 1117, 1121, 1122, 1124, 1127, 1130, 1131, 1132, 1135, 1141, 1142, 1150, 1151, 1152, 1154, 1160, 1161"
+        default: ""
       fraslista:
         description: "Fil med nya fraser, t.ex. verktyg/fraser-nya.txt (tomt = inga nya fraser)"
         required: false

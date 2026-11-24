@@ -47,6 +47,26 @@ const kalla = BIBLIOTEK && fs.existsSync(BIBLIOTEK) ? BIBLIOTEK : new URL('rostp
 const bib = JSON.parse(fs.readFileSync(kalla, 'utf8'));
 if (!Number.isInteger(bib.nasta) || !Array.isArray(bib.klipp)) { console.error('bibliotek.json är trasig'); process.exit(1); }
 const nummer = (n) => String(n).padStart(3, '0');
+
+// Val som skickats från lyssningssidan (knappen "Skicka val till GitHub" lägger en fil i verktyg/val/).
+// Läses äldst först – ett senare val av samma klipp vinner. Gäller ovanpå listorna rostval/rostgorom/rostbort.
+const skickat = { godkanda: new Set(), gorom: new Set(), bort: new Set() };
+const valMapp = new URL('val/', import.meta.url);
+if (fs.existsSync(valMapp)) {
+  for (const f of fs.readdirSync(valMapp).filter((f) => f.endsWith('.txt')).sort()) {
+    for (const rad of fs.readFileSync(new URL(f, valMapp), 'utf8').split('\n')) {
+      const m = /^(godkända|gör om|ta bort):(.*)$/i.exec(rad.trim());
+      if (!m) continue;
+      const typ = m[1].toLowerCase();
+      const mal = typ === 'godkända' ? 'godkanda' : typ === 'gör om' ? 'gorom' : 'bort';
+      for (const n of (m[2].match(/\d+/g) || []).map(nummer)) {
+        for (const s of Object.values(skickat)) s.delete(n);
+        skickat[mal].add(n);
+      }
+    }
+  }
+  console.log(`Skickade val: ${skickat.godkanda.size} godkända, ${skickat.gorom.size} gör om, ${skickat.bort.size} borttagna.`);
+}
 // Extra skydd: ett nummer som redan har en fil på servern hoppas över (t.ex. om förra körningen
 // laddade upp klippen men inte hann spara biblioteket). Så återanvänds ett nummer aldrig.
 async function finnsPaServern(nr) {
@@ -136,7 +156,17 @@ const jobb = [];
 const FRASLISTA = (process.env.FRASLISTA || '').trim();
 // GOR_OM = nummer på klipp som ska spelas in igen (samma fras, röst och modell). Det gamla klippet
 // märks som ersatt och döljs på sidan.
-const GOR_OM = (process.env.GOR_OM || '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean).map((s) => s.padStart(3, '0'));
+const GOR_OM_FALT = (process.env.GOR_OM || '').split(/[\s,]+/).map((s) => s.trim()).filter(Boolean).map((s) => s.padStart(3, '0'));
+// Tomt fält vid en inspelning: gör om allt i verktyg/rostgorom.txt och det som skickats från sidan,
+// utom det som redan gjorts om, tagits bort eller godkänts sedan dess.
+const listan = (namn) => { const f = new URL(namn, import.meta.url); return fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n')
+  .filter((l) => !l.startsWith('#')).join(',').split(',').map((s) => s.trim()).filter(Boolean).map(nummer) : []; };
+const GOR_OM = GOR_OM_FALT.length ? GOR_OM_FALT : !modeller.length ? [] :
+  [...new Set([...listan('rostgorom.txt').filter((nr) => !skickat.godkanda.has(nr)), ...skickat.gorom])].filter((nr) => {
+    const k = bib.klipp.find((x) => x.nr === nr);
+    return k && !k.ersatt && !skickat.bort.has(nr) && !listan('rostbort.txt').includes(nr);
+  });
+if (!GOR_OM_FALT.length && GOR_OM.length) console.log(`Gör om från skickade val: ${GOR_OM.join(', ')}`);
 if (GOR_OM.length) {
   for (const nr of GOR_OM) {
     const k = bib.klipp.find((x) => x.nr === nr);
@@ -254,6 +284,8 @@ console.log(`Mätte längden på ${matta} klipp.`);
 const bortFil = new URL('rostbort.txt', import.meta.url);
 const bort = new Set(fs.existsSync(bortFil) ? fs.readFileSync(bortFil, 'utf8').split('\n')
   .filter((l) => !l.startsWith('#')).join(',').split(',').map((s) => s.trim()).filter(Boolean) : []);
+for (const n of skickat.bort) bort.add(n);
+for (const n of [...skickat.godkanda, ...skickat.gorom]) bort.delete(n);
 for (const k of bib.klipp) { if (bort.has(k.nr)) k.bort = true; else delete k.bort; }
 console.log(`${bort.size} klipp markerade som borttagna.`);
 
@@ -280,6 +312,8 @@ for (const k of bib.klipp) {
 const valFil = new URL('rostval.txt', import.meta.url);
 const godkanda = new Set(fs.existsSync(valFil) ? fs.readFileSync(valFil, 'utf8').split('\n')
   .filter((l) => !l.startsWith('#')).join(',').split(',').map((s) => s.trim()).filter(Boolean) : []);
+for (const n of skickat.godkanda) godkanda.add(n);
+for (const n of [...skickat.bort, ...skickat.gorom]) godkanda.delete(n);
 for (const k of bib.klipp) { if (godkanda.has(k.nr)) k.godkand = true; else delete k.godkand; }
 console.log(`${godkanda.size} klipp godkända.`);
 
@@ -287,6 +321,8 @@ console.log(`${godkanda.size} klipp godkända.`);
 const goromFil = new URL('rostgorom.txt', import.meta.url);
 const gorom = new Set(fs.existsSync(goromFil) ? fs.readFileSync(goromFil, 'utf8').split('\n')
   .filter((l) => !l.startsWith('#')).join(',').split(',').map((x) => x.trim()).filter(Boolean) : []);
+for (const n of skickat.gorom) gorom.add(n);
+for (const n of [...skickat.godkanda, ...skickat.bort]) gorom.delete(n);
 for (const k of bib.klipp) { if (gorom.has(k.nr)) k.gorom = true; else delete k.gorom; }
 
 fs.writeFileSync(path.join(UT, 'bibliotek.json'), JSON.stringify(bib, null, 1));
