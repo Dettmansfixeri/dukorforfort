@@ -93,4 +93,10 @@ class ClipLinesTest {
         org.junit.Assert.assertEquals(listOf("Tack. Var det så svårt?"), ClipLines.fromGroups(g, false, closing = true, over = 5, limit = 70))
         org.junit.Assert.assertTrue(ClipLines.fromGroups(g, false, closing = false, over = 5, limit = 70).isEmpty())
     }
+
+    @Test fun gangfartKostarAlltid2000() {
+        for (over in listOf(3, 10, 20, 40)) org.junit.Assert.assertEquals(2000, ClipLines.fine(over, 5))
+        org.junit.Assert.assertEquals("Det här kostar dig två tusen kronor i böter.", ClipLines.fineText(20, 5).substringBefore(" Plus"))
+        org.junit.Assert.assertEquals(2400, ClipLines.fine(12, 50))
+    }
 }

@@ -212,7 +212,8 @@ object ClipLines {
     fun license(over: Int, limit: Int) = over >= Beeper.licenseOver(limit)
 
     /** Ordningsboten (kr) för [over] km/h över på väg med gränsen [limit]. */
-    fun fine(over: Int, limit: Int): Int = if (limit <= 50) when {
+    /** Böterna (kr) för bil. Gångfart (5 i datan): alltid 2 000 kr, oavsett fart (SFS 2024:1084, 8 kap. p. 7.1). */
+    fun fine(over: Int, limit: Int): Int = if (limit == SpeedTracker.GANGFART) 2000 else if (limit <= 50) when {
         over <= 10 -> 2000; over <= 15 -> 2400; over <= 20 -> 2800; over <= 25 -> 3200; over <= 30 -> 3600; else -> 4000
     } else when {
         over <= 10 -> 1500; over <= 15 -> 2000; over <= 20 -> 2400; over <= 25 -> 2800; over <= 30 -> 3200; over <= 35 -> 3600; else -> 4000

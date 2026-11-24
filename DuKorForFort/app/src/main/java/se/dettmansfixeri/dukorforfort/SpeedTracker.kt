@@ -121,6 +121,13 @@ object SpeedTracker {
 
     private const val PREFS = "installningar"
     const val MAX_MARGIN = 10
+    /** Gångfart (gångfartsområde) står som 5 km/h i Trafikverkets data. */
+    const val GANGFART = 5
+    /** Gångfart räknas som ungefär 7 km/h. Där gäller ingen marginal – så låg fart, marginal blir farligt. */
+    const val GANGFART_VARNA = 7
+
+    /** Farten där varningen börjar: gränsen + marginalen, men i gångfartsområde alltid 7 km/h. */
+    fun warnAt(limit: Int, margin: Int): Int = if (limit == GANGFART) GANGFART_VARNA else limit + margin
     /** Minusmarginal: varnar redan under gränsen (för att prova pip och vibration i lägre fart). */
     const val MIN_MARGIN = -10
     const val AUTO_ARM_KMH = 20
@@ -421,13 +428,13 @@ object SpeedTracker {
         val s = _settings.value
         val (limit, reason) = if (manual != null || road == null) (manual ?: 0) to null
             else limitFor(road.kmh, s, data.rules.getOrNull(road.ruleId).orEmpty())
-        val over = if (speed != null && armed) speed - (limit + s.margin) else 0
+        val over = if (speed != null && armed) speed - warnAt(limit, s.margin) else 0
 
         // Gasar man på: räkna ut var farten landar och varna redan innan man är över.
         val t = loc.elapsedRealtimeNanos / 1e9
         if (loc.hasSpeed()) accel.add(t, loc.speed.toDouble())
         val landing = if (loc.hasSpeed()) accel.landingKmh(loc.speed.toDouble()) else null
-        val landOver = if (landing != null && armed) landing - (limit + s.margin) else 0
+        val landOver = if (landing != null && armed) landing - warnAt(limit, s.margin) else 0
         val early = s.gasWarn && landOver > over && landOver > 0
         val warnOver = if (early) landOver else over
 
@@ -449,7 +456,7 @@ object SpeedTracker {
             val a = Ahead.find(data, road, e0, n0, course.toDouble()) { limitFor(it.kmh, s, data.rules.getOrNull(it.ruleId).orEmpty()).first }
             if (a != null && a.kmh < limit) {
                 val v = loc.speed.toDouble()
-                val v2 = (a.kmh + s.margin) / 3.6
+                val v2 = warnAt(a.kmh, s.margin) / 3.6
                 if (v > v2 + 0.5) {
                     // Olika inbromsning beroende på farten: 50 → 30 tappar fortare än 110 → 90.
                     val fromKmh = v * 3.6
@@ -490,7 +497,7 @@ object SpeedTracker {
                 aheadKmh = aheadKmh, aheadBlinkMs = clickMs, aheadSince = clickSince,
                 status = if (!armed) waitingText() else "Hastighetsdata: Trafikverket (ISA)")
         }
-        warner?.update(warnOver, s, limit, early, late)
+        warner?.update(warnOver, s.copy(margin = warnAt(limit, s.margin) - limit), limit, early, late)
         warner?.clicks(clickMs)
         heckler?.epa = s.vehicle == Vehicle.A_TRAKTOR && (speed ?: 0) > Vehicle.EPA_MAX
         heckler?.update(over > 0, speed, limit, s.heckleOn)
@@ -529,12 +536,12 @@ object SpeedTracker {
         simulating = true
         val s = _settings.value
         val (limit, reason) = limitFor(signed, s, emptyList())
-        val over = speed - (limit + s.margin)
+        val over = speed - warnAt(limit, s.margin)
         _state.update {
             it.copy(speedKmh = speed, limitKmh = limit, signedKmh = signed, reason = reason,
                 limitStale = false, tooFast = over > 0, waiting = false, status = "Testläge", aheadKmh = null)
         }
-        warner(ctx).update(over, s, limit)
+        warner(ctx).update(over, s.copy(margin = warnAt(limit, s.margin) - limit), limit)
         heckler?.epa = s.vehicle == Vehicle.A_TRAKTOR && (speed ?: 0) > Vehicle.EPA_MAX
         heckler?.update(over > 0, speed, limit, s.heckleOn)
     }
