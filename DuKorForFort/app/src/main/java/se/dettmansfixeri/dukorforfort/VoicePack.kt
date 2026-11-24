@@ -12,7 +12,7 @@ import java.net.URL
 import java.util.zip.ZipInputStream
 
 /**
- * Röstpaketet: de godkända Gemini-klippen (Opus i WebM) som laddas ner från GitHub.
+ * Röstpaketet: de godkända inspelade klippen (Opus i WebM) som laddas ner från GitHub.
  * Röstprov på GitHub bygger rostpaket.zip (klippen + manifest.json) och rostpaket.json (version).
  */
 object VoicePack {
@@ -102,6 +102,8 @@ object VoicePack {
         val version = remote.optString("version")
         val size = remote.optLong("size", 0)
         if (version.isEmpty() || (version == prefs.getString("version", null) && _state.value is State.Ready)) return
+        // Samma regel som hastighetsdatan: wifi, eller mobildata om det är tillåtet i inställningarna.
+        if (!DataManager.mayDownloadNow(ctx)) return
         val before = _state.value
         _state.value = State.Downloading(0f)
         // Samma filsystem som det riktiga paketet, så att bytet blir ett enkelt namnbyte.
@@ -236,7 +238,6 @@ object ClipLines {
         SpeedFacts.impactKmh(s, limit).takeIf { it >= 5 }?.let { out += impactText(it) }
         // Sparade sekunder och luftmotstånd säger inget på 10–30-vägar – bara på snabbare vägar.
         if (limit > 30) SpeedFacts.secondsSavedPerMil(s, limit).takeIf { it >= 5 }?.let { out += "Du sparar $it sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?" }
-        SpeedFacts.extraStopMeters(s, limit).takeIf { it >= 2 }?.let { out += "Din stoppsträcka är $it meter längre än om du hållit hastigheten. Hoppas ingen går över vägen." }
         if (limit > 30) SpeedFacts.extraDragPercent(s, limit).takeIf { it >= 5 }?.let { out += "Nu har du ökat luftmotståndet med $it procent jämfört med om du hållit hastigheten. Plånboken gråter." }
         return out
     }
@@ -244,14 +245,33 @@ object ClipLines {
 
 
     /** Fraser ur röstpaketets grupper som passar läget (se gruppreglerna i Heckler). */
-    fun fromGroups(groups: Map<String, List<String>>, nice: Boolean, closing: Boolean, over: Int, limit: Int): List<String> {
+    /** "Äh, glöm det. Bra." – när man saktar ner mitt i en kommentar. Grupperna "Glöm det", "Snäll glöm det" och "Brutal glöm det". */
+    fun forget(groups: Map<String, List<String>>, mode: HeckleMode): List<String> {
+        fun of(prefix: String?) = groups.filterKeys { g ->
+            val gl = g.lowercase()
+            gl.endsWith("glöm det") && (if (prefix == null) !gl.startsWith("snäll") && !gl.startsWith("brutal") else gl.startsWith(prefix))
+        }.values.flatten()
+        return when (mode) {
+            HeckleMode.NICE -> of("snäll")
+            HeckleMode.BRUTAL -> of("brutal").filter { VoicePack.has(it) }.ifEmpty { of(null) }   // Brutal: egna, annars elaka
+            else -> of(null)
+        }
+    }
+
+    /** Brutal-gruppernas fraser ("Brutal" och "Brutal tack"). */
+    fun brutal(groups: Map<String, List<String>>, closing: Boolean): List<String> =
+        groups.filterKeys { it.lowercase().startsWith("brutal") && ("tack" in it.lowercase()) == closing && !it.lowercase().endsWith("glöm det") }.values.flatten()
+
+    /** [brutal] = nivån Brutal: även Brutal-grupperna (annars hoppas de över). */
+    fun fromGroups(groups: Map<String, List<String>>, nice: Boolean, closing: Boolean, over: Int, limit: Int, brutal: Boolean = false): List<String> {
         val license = license(over, limit)
         val siffra = Regex("\\b$limit\\b")
         return buildList {
             for ((g, fraser) in groups) {
                 val gl = g.lowercase()
                 if (gl.startsWith("snäll") != nice) continue
-                if (gl == "böter" || gl.endsWith("-väg") || gl.startsWith("förvarning") || gl.endsWith("epa") || gl.startsWith("torrt") || gl == "krockfart" || gl.endsWith("beröm")) continue
+                if (gl.startsWith("brutal") && !brutal) continue
+                if (gl == "böter" || gl.endsWith("-väg") || gl.startsWith("förvarning") || gl.endsWith("epa") || gl.startsWith("torrt") || gl == "krockfart" || gl.endsWith("beröm") || gl.endsWith("glöm det")) continue
                 if (("tack" in gl) != closing) continue
                 if ("körkort" in gl && !license) continue
                 if ("tätort" in gl && limit > 50) continue

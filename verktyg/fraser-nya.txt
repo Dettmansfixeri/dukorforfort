@@ -66,18 +66,8 @@
 8 | Tack, nu kör du lagligt igen.
 8 | Bra, så ska det se ut.
 ## 10-väg
-1 | Din stoppsträcka är 2 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Din stoppsträcka är 3 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Din stoppsträcka är 4 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Din stoppsträcka är 7 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Din stoppsträcka är 10 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 ## 20-väg
-1 | Din stoppsträcka är 6 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Din stoppsträcka är 9 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Din stoppsträcka är 12 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 ## 30-väg
-1 | Din stoppsträcka är 5 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Din stoppsträcka är 14 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 ## 40-väg
 1 | Du sparar 22 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 5 procent jämfört med om du hållit hastigheten. Plånboken gråter.
@@ -90,15 +80,12 @@
 1 | Du sparar 134 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 38 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 180 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 8 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 56 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 245 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 89 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 300 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 17 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 125 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 386 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 27 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 206 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 ## 50-väg
 1 | Du sparar 14 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
@@ -115,10 +102,8 @@
 1 | Du sparar 166 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 69 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 206 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 19 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 96 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 270 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 30 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 156 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 ## 60-väg
 1 | Du sparar 10 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
@@ -130,12 +115,9 @@
 1 | Nu har du ökat luftmotståndet med 25 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 86 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 36 procent jämfört med om du hållit hastigheten. Plånboken gråter.
-1 | Din stoppsträcka är 15 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Du sparar 150 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 21 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 78 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 200 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 33 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 ## 70-väg
 1 | Du sparar 7 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 6 procent jämfört med om du hållit hastigheten. Plånboken gråter.
@@ -145,15 +127,12 @@
 1 | Nu har du ökat luftmotståndet med 15 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 47 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Du sparar 64 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 11 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 31 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 91 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 47 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 114 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 23 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 65 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 154 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 36 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 104 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 ## 80-väg
 1 | Du sparar 6 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
@@ -167,50 +146,37 @@
 1 | Du sparar 71 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 41 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 90 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 25 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Du sparar 123 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 40 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 ## 90-väg
 1 | Du sparar 9 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Du sparar 13 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 11 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 40 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 13 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 23 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 57 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 20 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Du sparar 73 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 28 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 49 procent jämfört med om du hållit hastigheten. Plånboken gråter.
-1 | Din stoppsträcka är 43 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 ## 100-väg
 1 | Du sparar 17 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Du sparar 24 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 14 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 33 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 22 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 32 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 60 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Du sparar 83 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 46 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 ## 110-väg
 1 | Du sparar 20 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Du sparar 27 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Nu har du ökat luftmotståndet med 19 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 39 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 24 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 29 procent jämfört med om du hållit hastigheten. Plånboken gråter.
-1 | Din stoppsträcka är 32 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 40 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 1 | Du sparar 70 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 50 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 1 | Nu har du ökat luftmotståndet med 62 procent jämfört med om du hållit hastigheten. Plånboken gråter.
 ## 120-väg
 1 | Du sparar 5 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Du sparar 12 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
 1 | Du sparar 23 sekunder per mil jämfört med om du hållit hastigheten. Är det värt det?
-1 | Din stoppsträcka är 34 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
-1 | Din stoppsträcka är 53 meter längre än om du hållit hastigheten. Hoppas ingen går över vägen.
 ## Förvarning @ Kort, lugn och tydlig, som en navigator. Inga pauser.
 16 | Nu blir det tio.
 16 | Nu blir det tjugo.
@@ -299,3 +265,30 @@
 ## Mer snällt beröm @ Lugn, vänlig och omtänksam. Jämnt tempo.
 8 | Bra jobbat, fortsätt så.
 8 | Bra jobbat, lugnt och fint.
+## Glöm det @ Avbryter sig själv mitt i, lite förvånad och torr. Kort och snabbt.
+8 | Äh, glöm det. Bra.
+8 | Äh, strunt samma. Du fattade.
+8 | Ehh… glöm det. Där satt den.
+## Snäll glöm det @ Avbryter sig själv mitt i, glatt överraskad. Kort och snabbt.
+8 | Äh, glöm det. Bra gjort.
+8 | Åh, strunt samma. Snyggt.
+8 | Äsch, glöm det. Nu är det bra.
+## Brutal @ Föraktfull, rasande och nedlåtande. Spottar ur sig orden. Jämnt tempo.
+8 | Grattis, du är officiellt trafikens största jävla pucko.
+8 | Ditt körkort borde ha legat kvar i kartongen med flingorna, för det var där du hittade det.
+8 | Vet dina föräldrar att du kör så här?... De skäms.... Det vet jag.
+8 | Du är inte sen. Du är bara en idiot.
+8 | Det är så här folk dör. Meeeen... Kör du.
+8 | Jag hoppas du har bra försäkring. Och en bra advokat.
+## Brutal tack @ Föraktfull och trött, som om föraren äntligen fattat något självklart.
+8 | Åhh, äntligen... var det så jävla svårt?
+8 | Jaha. Där satt den. Till slut.
+8 | Wow. Gasen var inte fastlimmad! Applåd.
+8 | Äntligen. Hjärnan kom ikapp.
+8 | Bra. Fortsätt så,... Pucko.
+## Brutal glöm det @ Avbryter sig själv mitt i, föraktfull och lite förvånad. Kort och snabbt.
+8 | Äh, skit samma. Där satt den äntligen.
+8 | Ehh… glöm det. Även en idiot kan lära sig.
+8 | Äh, glöm det. Du fattade till slut, pucko.
+8 | Ehh, fan.. glöm det.
+8 | Äh, strunt samma. Hjärnan vaknade.

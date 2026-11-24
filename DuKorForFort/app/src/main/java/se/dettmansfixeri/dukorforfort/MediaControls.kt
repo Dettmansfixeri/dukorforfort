@@ -15,6 +15,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,12 +62,11 @@ fun MediaControls(modifier: Modifier = Modifier) {
 }
 
 /** Ritade ikoner – tecken som ⏸ blir färgade emojier på många telefoner. */
-enum class Ikon { FORRA, SPELA, PAUS, NASTA, STOPP }
+enum class Ikon { FORRA, SPELA, PAUS, NASTA, STOPP, KUGGE }
 
 /** En ritad ikon i texthöjd, t.ex. i en knapp. */
 @Composable
-fun IkonBild(ikon: Ikon, storlek: Int = 14) {
-    val farg = LocalContentColor.current   // samma färg som knappens text
+fun IkonBild(ikon: Ikon, storlek: Int = 14, farg: Color = LocalContentColor.current) {   // standard: samma färg som knappens text
     Canvas(Modifier.size(storlek.dp)) { rita(ikon, farg) }
 }
 
@@ -82,5 +83,11 @@ private fun DrawScope.rita(ikon: Ikon, farg: Color = Color.White) {
         Ikon.NASTA -> { triangel(0f, w * 0.45f); triangel(w * 0.42f, w * 0.87f); stapel(w * 0.87f, w * 0.13f) }
         Ikon.FORRA -> { stapel(0f, w * 0.13f); triangel(w * 0.58f, w * 0.13f); triangel(w, w * 0.55f) }
         Ikon.STOPP -> drawRect(vit, Offset(w * 0.1f, h * 0.1f), Size(w * 0.8f, h * 0.8f))
+        Ikon.KUGGE -> {
+            // Kugghjul: åtta kuggar runt en ring.
+            val c = Offset(w / 2, h / 2)
+            for (i in 0 until 8) rotate(i * 45f, c) { drawRect(vit, Offset(w * 0.42f, 0f), Size(w * 0.16f, h * 0.22f)) }
+            drawCircle(vit, w * 0.3f, c, style = Stroke(w * 0.16f))
+        }
     }
 }

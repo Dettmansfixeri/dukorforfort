@@ -31,15 +31,17 @@ object SignPainter {
     private const val SIGN_RED = 0xFFDC0028.toInt()
     private const val PLATE_RED = 0xFFE8202E.toInt()
     private const val SIGN_YELLOW = 0xFFFFC800.toInt()
+    private const val DEV_BLUE = 0xFF1565C0.toInt()
 
     fun tratex(ctx: Context): Typeface? = try { ResourcesCompat.getFont(ctx, R.font.tratex_svart) } catch (e: Exception) { null }
 
-    fun drawSpeedSign(c: Canvas, size: Float, text: String, tf: Typeface?, textColor: Int = android.graphics.Color.BLACK) {
+    /** [dev] = påhittad gräns i utvecklarläget: blå skylt med vit kant och vit siffra, går inte att förväxla med en riktig. */
+    fun drawSpeedSign(c: Canvas, size: Float, text: String, tf: Typeface?, textColor: Int = android.graphics.Color.BLACK, dev: Boolean = false) {
         val u = size / 100f
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        p.color = SIGN_RED; c.drawCircle(50f * u, 50f * u, 50f * u, p)
-        p.color = SIGN_YELLOW; c.drawCircle(50f * u, 50f * u, 38.4f * u, p)
-        val tp = signTextPaint(u, text, tf).apply { color = textColor }
+        p.color = if (dev) android.graphics.Color.WHITE else SIGN_RED; c.drawCircle(50f * u, 50f * u, 50f * u, p)
+        p.color = if (dev) DEV_BLUE else SIGN_YELLOW; c.drawCircle(50f * u, 50f * u, 38.4f * u, p)
+        val tp = signTextPaint(u, text, tf).apply { color = if (dev) android.graphics.Color.WHITE else textColor }
         // Baslinjen läggs så att siffrornas höjd (≈0.8 em i Tratex) blir centrerad.
         c.drawText(text, 50f * u, (50f + 0.4f * tp.textSize / u) * u, tp)
     }
@@ -123,14 +125,14 @@ private fun secretTaps(key: Any?, onSecret: (() -> Unit)?, hit: (x: Float, width
 
 /** Hastighetsskylten. Fem tryck på sista siffran (nollan) anropar [onSecret]. */
 @Composable
-fun SpeedSign(limit: Int?, stale: Boolean, size: Dp = 190.dp, onSecret: (() -> Unit)? = null) {
+fun SpeedSign(limit: Int?, stale: Boolean, size: Dp = 190.dp, onSecret: (() -> Unit)? = null, dev: Boolean = false) {
     val tf = rememberTratex()
     val text = limit?.toString() ?: "?"
     val tap = secretTaps(text, onSecret) { x, w -> x in SignPainter.signLastCharRange(w, text, tf) }
     androidx.compose.foundation.Canvas(Modifier.size(size).then(tap)) {
         SignPainter.drawSpeedSign(
             drawContext.canvas.nativeCanvas, this.size.width, limit?.toString() ?: "?", tf,
-            if (stale) android.graphics.Color.GRAY else android.graphics.Color.BLACK
+            if (stale) android.graphics.Color.GRAY else android.graphics.Color.BLACK, dev
         )
     }
 }

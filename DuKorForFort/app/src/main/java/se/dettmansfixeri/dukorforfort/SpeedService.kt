@@ -140,7 +140,7 @@ class SpeedService : Service() {
             .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(open)
-            .addAction(0, "Stopp", service(1, ACTION_STOP))
+            .addAction(0, "Avaktivera mätning", service(1, ACTION_STOP))
         if (s.auto) b.addAction(0, "Jag kör inte", service(2, ACTION_NOT_DRIVING))
         val n = b.build()
 

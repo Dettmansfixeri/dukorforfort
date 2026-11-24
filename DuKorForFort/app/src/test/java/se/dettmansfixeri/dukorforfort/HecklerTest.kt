@@ -20,13 +20,4 @@ class HecklerTest {
         assertTrue(SpeedFacts.extraStopMeters(74, 70) in 4..7)
         assertEquals(12, SpeedFacts.extraDragPercent(74, 70))
     }
-
-    @Test
-    fun linesAlternateAndNeverCrash() {
-        for (mode in listOf(HeckleMode.NICE, HeckleMode.MEAN))
-            for (n in 0..40)
-                for ((v, l) in listOf(71 to 70, 74 to 70, 140 to 30, 31 to 30))
-                    assertTrue(Heckler.line(n, mode, v, l).isNotBlank())
-        assertEquals("Hallå? Skylten säger 70.", Heckler.line(2, HeckleMode.MEAN, 74, 70))
-    }
 }

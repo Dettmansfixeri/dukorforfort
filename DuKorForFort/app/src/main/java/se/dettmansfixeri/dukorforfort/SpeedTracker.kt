@@ -42,6 +42,14 @@ data class UiState(
     val auto: Boolean = false,
     /** Testfunktionen "Visa vad appen tror": t.ex. "Landar på 73" eller "50 om 230 m – släpp gasen". */
     val guess: String? = null,
+    /** Förvarningen: den lägre gränsen som kommer (visas under skylten), annars null. */
+    val aheadKmh: Int? = null,
+    /** Tickandets takt (ms) om det tickar, null om rösten sa till i stället (då lyser skylten stilla). */
+    val aheadBlinkMs: Int? = null,
+    /** När tickandet började (SystemClock.elapsedRealtime), så att blinket går i takt. */
+    val aheadSince: Long = 0L,
+    /** Gränsen är påhittad i utvecklarläget (−10 / +10), inte vägens. */
+    val manual: Boolean = false,
 )
 
 enum class SoundMode(val label: String) {
@@ -72,9 +80,6 @@ data class Settings(
     val beep: Boolean = true,
     val vibrate: Boolean = true,
     val heckle: HeckleMode = HeckleMode.NICE,
-    /** Talmotor (paketnamn) och röst. null = standardmotorn / bästa svenska rösten. */
-    val voiceEngine: String? = null,
-    val voiceName: String? = null,
     val auto: AutoMode = AutoMode.OFF,
     val carAddress: String? = null,
     val carName: String? = null,
@@ -86,13 +91,11 @@ data class Settings(
     val testAhead: Boolean = false,
     val testLearnBrake: Boolean = false,
     val testShowGuess: Boolean = false,
-    val testVoices: Boolean = false,
 ) {
     val aheadOn get() = tests && testAhead
     val learnBrakeOn get() = aheadOn && testLearnBrake
     val showGuessOn get() = tests && testShowGuess
-    val voicesOn get() = tests && testVoices
-    val anyTestOn get() = aheadOn || showGuessOn || voicesOn
+    val anyTestOn get() = aheadOn || showGuessOn
     /** Tyst läge: musiken pausas i stället för pip (piper bara om ingen musik spelas). Ingen röst. */
     val silentOn get() = beep && sound == SoundMode.SILENT
     /** Rösten, utom i tyst läge. */
@@ -139,6 +142,14 @@ object SpeedTracker {
     // Förvarningen: sagd för den här lägre gränsen ([announcedKmh]) medan vi är på gränsen [announcedAt].
     private var announcedAt: Int? = null
     private var announcedKmh: Int? = null
+    private var lastClickMs: Int? = null
+    // Påhittad gräns i utvecklarläget, null = vägens riktiga gräns.
+    private var manualKmh: Int? = null
+    // Lägre gräns som förvarnats om, och om man passerat den utan att ha saktat ner (då larmar det direkt).
+    private var warnedFor: Int? = null
+    private var warnedAt: Int? = null
+    private var late = false
+    private var clickSince = 0L
         private set
     private val matcher = RoadMatcher()
     private val accel = SpeedTrend()
@@ -183,11 +194,11 @@ object SpeedTracker {
         val since = if (lastFix == null) null else SystemClock.elapsedRealtime() - lastFixAt
         if (since == null || since <= GPS_TIMEOUT_MS) return
         gpsLost = true
-        _state.update { it.copy(speedKmh = null, limitStale = it.limitKmh != null, tooFast = false,
+        _state.update { it.copy(speedKmh = null, limitStale = it.limitKmh != null, tooFast = false, aheadKmh = null,
             status = if (!armed) waitingText() else "GPS-signal saknas – varningen är tyst") }
         warner?.update(0, _settings.value)
         warner?.clicks(null)
-        heckler?.reset() // tystnar utan "tack"-repliken
+        heckler?.reset(hush = false) // ingen "tack"-replik, men det som sägs nu pratas klart
     }
     private val gnss = object : GnssStatus.Callback() {
         override fun onSatelliteStatusChanged(status: GnssStatus) {
@@ -206,8 +217,6 @@ object SpeedTracker {
             beep = p.getBoolean("pip", true),
             vibrate = p.getBoolean("vibrera", true),
             heckle = HeckleMode.fromName(p.getString("forolampning", null)),
-            voiceEngine = p.getString("rost_motor", null),
-            voiceName = p.getString("rost", null),
             auto = AutoMode.fromName(p.getString("auto", null)),
             carAddress = p.getString("bil_adress", null),
             carName = p.getString("bil_namn", null),
@@ -217,7 +226,6 @@ object SpeedTracker {
             testAhead = p.getBoolean("test_lagre_grans", false),
             testLearnBrake = p.getBoolean("test_inbromsning", false),
             testShowGuess = p.getBoolean("test_visa", false),
-            testVoices = p.getBoolean("test_roster", false),
         )
         brake.load(p)
     }
@@ -226,41 +234,47 @@ object SpeedTracker {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString("fordon", s.vehicle.name).putBoolean("slap", s.trailer)
             .putInt("marginal", s.margin).putBoolean("pip", s.beep).putBoolean("vibrera", s.vibrate).putString("forolampning", s.heckle.name)
-            .putString("rost_motor", s.voiceEngine).putString("rost", s.voiceName)
             .putString("auto", s.auto.name).putString("bil_adress", s.carAddress).putString("bil_namn", s.carName)
             .putString("ljud", s.sound.name).putBoolean("forvarna_gas", s.gasWarn).putBoolean("test", s.tests)
             .putBoolean("test_lagre_grans", s.testAhead).putBoolean("test_inbromsning", s.testLearnBrake)
-            .putBoolean("test_visa", s.testShowGuess).putBoolean("test_roster", s.testVoices)
+            .putBoolean("test_visa", s.testShowGuess)
             .apply()
-        val old = _settings.value
         _settings.value = s
-        // Ny talmotor kräver en ny röst-instans; ny röst räcker att byta.
-        heckler?.let { h ->
-            if (s.voiceEngine != h.engine) {
-                h.release()
-                heckler = Heckler(appContext(ctx), s.voiceEngine, s.voiceName).also { n -> n.onSpeaking = { warner?.duck(it) } }
-            }
-            else if (s.voiceName != old.voiceName) h.setVoiceName(s.voiceName)
-        }
-        heckler?.useClips = s.voicesOn
-        if (s.voicesOn) syncVoices(ctx)
+        if (!s.tests) manualKmh = null   // påhittad gräns bara i utvecklarläget
         recompute() // räkna om direkt
     }
 
     private fun appContext(ctx: Context): Context = ctx.applicationContext
 
     private fun warner(ctx: Context): Warner {
-        if (heckler == null) heckler = Heckler(ctx.applicationContext, _settings.value.voiceEngine, _settings.value.voiceName)
-        heckler?.useClips = _settings.value.voicesOn
-        if (_settings.value.voicesOn && VoicePack.state.value !is VoicePack.State.Ready) VoicePack.load(ctx.applicationContext)
+        if (heckler == null) heckler = Heckler(ctx.applicationContext)
+        if (VoicePack.state.value !is VoicePack.State.Ready) VoicePack.load(ctx.applicationContext)
         heckler?.onSpeaking = { warner?.duck(it) }
         return warner ?: Warner(ctx.applicationContext).also { warner = it }
     }
 
-    /** Gemini-röster (test): läs in röstpaketet och hämta nytt om det finns. */
+    /** Rösterna: läs in röstpaketet och hämta nytt om det finns. */
     fun syncVoices(ctx: Context) {
         val app = ctx.applicationContext
         scope.launch { VoicePack.sync(app) }
+    }
+
+    /**
+     * Utvecklarläget: ändra gränsen med [delta] (−10 / +10). Första trycket utgår från gränsen som gäller nu
+     * (50 om ingen finns). Alla gränser appen kan visa: 10–120.
+     */
+    fun stepManual(delta: Int) {
+        val base = manualKmh ?: _state.value.limitKmh ?: 50
+        setManual(((base + delta) / 10 * 10).coerceIn(10, 120))
+    }
+
+    /** Tillbaka till vägens riktiga gräns. */
+    fun clearManual() = setManual(null)
+
+    private fun setManual(kmh: Int?) {
+        manualKmh = kmh
+        if (fixIsFresh()) recompute()
+        else _state.update { it.copy(limitKmh = kmh, signedKmh = kmh, limitStale = false, manual = kmh != null, reason = null) }
     }
 
     /** Skapar rösten i förväg (testsidan). */
@@ -283,7 +297,8 @@ object SpeedTracker {
         DataManager.load(ctx)
         accel.reset()
         brake.reset()
-        if (_settings.value.voicesOn) syncVoices(ctx)
+        late = false; warnedFor = null; warnedAt = null
+        syncVoices(ctx)
         warner(ctx)
         val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         locationManager = lm
@@ -306,7 +321,7 @@ object SpeedTracker {
             while (isActive) {
                 delay(DataManager.CHECK_INTERVAL_MS)
                 DataManager.autoUpdate(ctx)
-                if (_settings.value.voicesOn) VoicePack.sync(ctx)
+                VoicePack.sync(ctx)
                 AppUpdater.check()
             }
         }
@@ -345,6 +360,7 @@ object SpeedTracker {
     }
 
     fun stop() {
+        manualKmh = null
         locationManager?.removeUpdates(listener)
         try { locationManager?.unregisterGnssStatusCallback(gnss) } catch (e: Exception) { }
         locationManager = null
@@ -388,19 +404,23 @@ object SpeedTracker {
         val accuracy = if (loc.hasAccuracy()) loc.accuracy else null
         val road = matcher.match(data, e, n, accuracy, course)
 
+        // Påhittad gräns (utvecklarläget, knapparna −10 / +10): gäller i stället för vägens.
+        val manual = manualKmh.takeIf { _settings.value.tests }
         if (road == null) {
             _debug.update { it.copy(road = null) }
-            setNoLimit(speed, "Ingen väg med hastighetsgräns i närheten")
-            return
-        }
-        _debug.update {
+            if (manual == null) {
+                setNoLimit(speed, "Ingen väg med hastighetsgräns i närheten")
+                return
+            }
+        } else _debug.update {
             it.copy(road = "Sträcka #${road.id} · ${road.kmh} km/h · ${road.distance.roundToInt()} m bort" +
                     (if (road.ruleId >= 0) " · regel ${road.ruleId}" else "") +
                     when (road.direction) { 1 -> " · enkelriktad (med)"; 2 -> " · enkelriktad (mot)"; else -> "" })
         }
 
         val s = _settings.value
-        val (limit, reason) = limitFor(road.kmh, s, data.rules.getOrNull(road.ruleId).orEmpty())
+        val (limit, reason) = if (manual != null || road == null) (manual ?: 0) to null
+            else limitFor(road.kmh, s, data.rules.getOrNull(road.ruleId).orEmpty())
         val over = if (speed != null && armed) speed - (limit + s.margin) else 0
 
         // Gasar man på: räkna ut var farten landar och varna redan innan man är över.
@@ -417,8 +437,15 @@ object SpeedTracker {
         // Förvarning om lägre gräns längre fram (testfunktion).
         var clickMs: Int? = null
         var aheadText: String? = null
+        var aheadKmh: Int? = null
+        // Passerat skylten man förvarnats om men fortfarande för fort: larma direkt tills man är nere.
+        if (limit != warnedAt) {
+            late = warnedFor != null && limit <= warnedFor!! && over > 0
+            warnedFor = null; warnedAt = limit
+        }
+        if (over <= 0) late = false
         if (limit != announcedAt) { announcedAt = limit; announcedKmh = null }
-        if (s.aheadOn && armed && course != null && loc.hasSpeed() && (speed ?: 0) >= 30 && warnOver <= 0) {
+        if (manual == null && road != null && s.aheadOn && armed && course != null && loc.hasSpeed() && (speed ?: 0) >= 30 && warnOver <= 0) {
             val a = Ahead.find(data, road, e0, n0, course.toDouble()) { limitFor(it.kmh, s, data.rules.getOrNull(it.ruleId).orEmpty()).first }
             if (a != null && a.kmh < limit) {
                 val v = loc.speed.toDouble()
@@ -436,6 +463,8 @@ object SpeedTracker {
                     aheadText = "${a.kmh} om ${a.distance.roundToInt()} m – " +
                         (if (left <= 0) "släpp gasen nu" else "släpp om ${left.roundToInt()} m")
                     if (left <= 0) {
+                        aheadKmh = a.kmh
+                        warnedFor = a.kmh; warnedAt = limit
                         // Säg "Nu blir det 40 här framme" en gång per lägre gräns. Går det inte (tyst läge,
                         // klippet saknas eller rösten pratar redan) tickar det som förut.
                         val said = announcedKmh == a.kmh || (!s.silentOn && prefsCtx?.let {
@@ -454,19 +483,21 @@ object SpeedTracker {
             if (s.learnBrakeOn) "Inbromsning m/s²: ${brake.summary()}" else null,
         ).joinToString("\n").ifEmpty { null }
 
+        if (clickMs != lastClickMs) { lastClickMs = clickMs; clickSince = SystemClock.elapsedRealtime() }
         _state.update {
-            it.copy(speedKmh = speed, limitKmh = limit, signedKmh = road.kmh, reason = reason,
+            it.copy(speedKmh = speed, limitKmh = limit, signedKmh = manual ?: road?.kmh, reason = reason, manual = manual != null,
                 limitStale = false, tooFast = over > 0, waiting = !armed, guess = guess,
+                aheadKmh = aheadKmh, aheadBlinkMs = clickMs, aheadSince = clickSince,
                 status = if (!armed) waitingText() else "Hastighetsdata: Trafikverket (ISA)")
         }
-        warner?.update(warnOver, s, limit, early)
+        warner?.update(warnOver, s, limit, early, late)
         warner?.clicks(clickMs)
         heckler?.epa = s.vehicle == Vehicle.A_TRAKTOR && (speed ?: 0) > Vehicle.EPA_MAX
         heckler?.update(over > 0, speed, limit, s.heckleOn)
     }
 
     private fun setNoLimit(speed: Int?, status: String) {
-        _state.update { it.copy(speedKmh = speed, limitKmh = null, signedKmh = null, reason = null,
+        _state.update { it.copy(speedKmh = speed, limitKmh = null, signedKmh = null, reason = null, aheadKmh = null,
             tooFast = false, waiting = !armed, guess = null, status = if (!armed) waitingText() else status) }
         warner?.update(0, _settings.value)
         warner?.clicks(null)
@@ -501,7 +532,7 @@ object SpeedTracker {
         val over = speed - (limit + s.margin)
         _state.update {
             it.copy(speedKmh = speed, limitKmh = limit, signedKmh = signed, reason = reason,
-                limitStale = false, tooFast = over > 0, waiting = false, status = "Testläge")
+                limitStale = false, tooFast = over > 0, waiting = false, status = "Testläge", aheadKmh = null)
         }
         warner(ctx).update(over, s, limit)
         heckler?.epa = s.vehicle == Vehicle.A_TRAKTOR && (speed ?: 0) > Vehicle.EPA_MAX

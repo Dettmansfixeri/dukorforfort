@@ -80,4 +80,17 @@ class ClipLinesTest {
         assertEquals(20, ClipLines.step(28, 30))
         assertEquals(null, ClipLines.step(0, 70))
     }
+
+    @Test fun glomDetBaraNarManRattarSig() {
+        val g = mapOf(
+            "Glöm det" to listOf("Äh, glöm det. Bra."),
+            "Snäll glöm det" to listOf("Äh, glöm det. Bra gjort."),
+            "Tack" to listOf("Tack. Var det så svårt?"),
+        )
+        org.junit.Assert.assertEquals(listOf("Äh, glöm det. Bra."), ClipLines.forget(g, HeckleMode.MEAN))
+        org.junit.Assert.assertEquals(listOf("Äh, glöm det. Bra gjort."), ClipLines.forget(g, HeckleMode.NICE))
+        // Inte med bland vanliga kommentarer eller avslutningar.
+        org.junit.Assert.assertEquals(listOf("Tack. Var det så svårt?"), ClipLines.fromGroups(g, false, closing = true, over = 5, limit = 70))
+        org.junit.Assert.assertTrue(ClipLines.fromGroups(g, false, closing = false, over = 5, limit = 70).isEmpty())
+    }
 }

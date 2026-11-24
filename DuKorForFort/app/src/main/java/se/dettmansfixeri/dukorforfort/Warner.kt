@@ -37,6 +37,8 @@ class Warner(ctx: Context) {
         private const val PULSE_ON = 90L
         private const val PULSE_OFF = 110L
         const val GRACE_MS = 1500L
+        /** Passerat en förvarnad skylt för fort: larmar som "snabbare tickande larm" (16 över). */
+        const val LATE_LEVEL = 16
 
         /** Mellanrum mellan varje surr för ett visst steg. */
         fun intervalMs(level: Int): Long = when (level) {
@@ -84,8 +86,10 @@ class Warner(ctx: Context) {
     /**
      * [over] = km/h över gränsen + marginalen. [limit] = gränsen (för var sirenen börjar).
      * [early] = varningen kommer från uträknad fart (man gasar på) – då väntar den inte in GPS-skakningar.
+     * [late] = man har passerat en lägre skylt som förvarnats om utan att ha saktat ner: larmar direkt
+     * (inget uppehåll efter tickandet) och lika högt som "snabbare tickande larm" tills man är nere.
      */
-    fun update(over: Int, s: Settings, limit: Int? = null, early: Boolean = false) {
+    fun update(over: Int, s: Settings, limit: Int? = null, early: Boolean = false, late: Boolean = false) {
         settings = s
         sirenAt = Beeper.licenseOver(limit) - s.margin
         latestOver = over.coerceAtLeast(0)
@@ -99,12 +103,12 @@ class Warner(ctx: Context) {
         val now = SystemClock.elapsedRealtime()
         if (overSince == 0L) overSince = now
         val wait = GRACE_MS - (now - overSince)
-        if (wait > 0 && !early) {
+        if (wait > 0 && !early && !late) {
             if (graceJob == null) graceJob = scope.launch { delay(wait); graceJob = null; apply(latestOver) }
             return
         }
         graceJob?.cancel(); graceJob = null
-        apply(latestOver)
+        apply(if (late) maxOf(latestOver, minOf(LATE_LEVEL, sirenAt - 1)) else latestOver)
     }
 
     /** Pip och tick-tick tystare medan rösten pratar. */

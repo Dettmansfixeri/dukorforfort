@@ -17,6 +17,11 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -82,7 +87,7 @@ fun DataGate() {
         SpeedTracker.loadSettings(ctx)
         AutoStart.apply(ctx, SpeedTracker.settings.value)
         AppUpdater.check()
-        if (SpeedTracker.settings.value.voicesOn) VoicePack.sync(ctx)
+        VoicePack.sync(ctx)
         DataUpdates.schedule(ctx)
         // Ny data laddas ner direkt på wifi (eller mobildata om det är tillåtet), annars kommer frågan.
         DataManager.autoUpdate(ctx)
@@ -370,12 +375,16 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                             },
                             fontSize = 14.sp, color = Dim
                         )
-                        Slider(
-                            value = s.margin.toFloat(),
-                            onValueChange = { s = s.copy(margin = Math.round(it)) },
-                            valueRange = SpeedTracker.MIN_MARGIN.toFloat()..SpeedTracker.MAX_MARGIN.toFloat(),
-                            steps = SpeedTracker.MAX_MARGIN - SpeedTracker.MIN_MARGIN - 1,
-                        )
+                        // −1 / +1: exakt och lätt att träffa (ett reglage hoppar lätt fel).
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.padding(vertical = 8.dp)) {
+                            OutlinedButton(onClick = { s = s.copy(margin = (s.margin - 1).coerceAtLeast(SpeedTracker.MIN_MARGIN)) },
+                                enabled = s.margin > SpeedTracker.MIN_MARGIN) { Text("−1", fontSize = 20.sp) }
+                            Text(if (s.margin > 0) "+${s.margin}" else "${s.margin}", fontSize = 32.sp, fontWeight = FontWeight.Black,
+                                textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
+                            OutlinedButton(onClick = { s = s.copy(margin = (s.margin + 1).coerceAtMost(SpeedTracker.MAX_MARGIN)) },
+                                enabled = s.margin < SpeedTracker.MAX_MARGIN) { Text("+1", fontSize = 20.sp) }
+                        }
                         SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
                         SwitchRow("Förvarna när jag gasar på", "Varnar redan när du är på väg över gränsen, innan du är där", s.gasWarn) {
                             s = s.copy(gasWarn = it)
@@ -402,12 +411,13 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                         }
                         HorizontalDivider(Modifier.padding(vertical = 8.dp))
                         Text("Röst", fontWeight = FontWeight.Bold)
-                        Text(if (s.silentOn) "Tyst läge är valt – rösten är av" else "Pratar om du ligger över gränsen mer än 5 sekunder", fontSize = 13.sp, color = Dim)
+                        Text(if (s.silentOn) "Tyst läge är valt – rösten är av" else "Pratar om du ligger över gränsen mer än 2 sekunder", fontSize = 13.sp, color = Dim)
                         HeckleMode.entries.forEach { m -> RadioRow(m.label, s.heckle == m) { s = s.copy(heckle = m) } }
                         if (s.heckle != HeckleMode.OFF && !s.silentOn) OutlinedButton(onClick = {
                             Preview.stop()
-                            SpeedTracker.prepareVoice(ctx).preview(s.heckle, s.voicesOn)
+                            SpeedTracker.prepareVoice(ctx).preview(s.heckle)
                         }) { IkonBild(Ikon.SPELA); Spacer(Modifier.width(8.dp)); Text("Provlyssna rösten") }
+                        if (s.heckle != HeckleMode.OFF && !s.silentOn) VoicePackStatus()
                     }
 
                     SettingsPage.VEHICLE -> {
@@ -456,10 +466,6 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                                 }
                                 SwitchRow("Visa vad appen tror (TEST)",
                                     "T.ex. \"Landar på 73 km/h\" eller \"50 om 230 m – släpp om 80 m\"", s.testShowGuess) { s = s.copy(testShowGuess = it) }
-                                SwitchRow("Gemini-röster (TEST)",
-                                    "Inspelade röster i stället för telefonens talsyntes. Säger böterna och kommentarer som är godkända.",
-                                    s.testVoices) { s = s.copy(testVoices = it) }
-                                if (s.testVoices) VoicePackStatus()
                             }
                         }
                     }
@@ -579,7 +585,17 @@ fun warningBackground(tooFast: Boolean): Color {
 @Composable
 fun SignBlock(state: UiState, signSize: androidx.compose.ui.unit.Dp, onSecret: (() -> Unit)? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        SpeedSign(state.limitKmh, state.limitStale, signSize, onSecret)
+        val ahead = state.aheadKmh.takeIf { !state.tooFast }
+        // Fast storlek: den större kommande skylten sticker ut utan att något flyttar sig.
+        Box(Modifier.size(signSize), contentAlignment = Alignment.Center) {
+            // GPS tappad: skylten i färg med "?" (mätningen är på och väntar). Avaktiverad: hela sidan blir grå.
+        SpeedSign(if (state.limitStale) null else state.limitKmh, false, signSize, onSecret, dev = state.manual)
+            // Påhittad gräns: ett svagt "DEV" ovanför skylten.
+            if (state.manual) Text("DEV", fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color.White.copy(alpha = 0.35f),
+                modifier = Modifier.align(Alignment.TopCenter).offset(y = (-22).dp))
+            // Förvarningen: skylten som kommer blinkar ovanpå den nuvarande, större.
+            if (ahead != null) AheadSign(ahead, state.aheadBlinkMs, state.aheadSince, signSize * AHEAD_SCALE)
+        }
         val signed = state.signedKmh
         if (state.reason != null && signed != null && signed != state.limitKmh) {
             Text(
@@ -593,6 +609,32 @@ fun SignBlock(state: UiState, signSize: androidx.compose.ui.unit.Dp, onSecret: (
     }
 }
 
+/**
+ * Den lägre gränsen som kommer, ovanpå den nuvarande skylten. Blinkar i takt med tickandet
+ * (syns när det tickar, däremellan syns nuvarande skylt), eller lugnare om rösten sa till i stället.
+ */
+@Composable
+fun AheadSign(kmh: Int, blinkMs: Int?, since: Long, size: androidx.compose.ui.unit.Dp) {
+    var on by remember { mutableStateOf(true) }
+    LaunchedEffect(blinkMs, since) {
+        val period = (blinkMs ?: CALM_BLINK_MS).toLong()
+        val onMs = if (blinkMs == null) period / 2 else BLINK_ON_MS
+        while (true) {
+            on = (android.os.SystemClock.elapsedRealtime() - since) % period < onMs
+            kotlinx.coroutines.delay(16)
+        }
+    }
+    // Får vara större än platsen den ligger på (sticker ut runt nuvarande skylt).
+    Box(Modifier.wrapContentSize(unbounded = true).alpha(if (on) 1f else 0f)) { SpeedSign(kmh, false, size) }
+}
+
+/** Så länge skylten lyser per tick (två tick med 130 ms emellan). */
+private const val BLINK_ON_MS = 350L
+/** Takten när rösten sa till (inget tickande). */
+private const val CALM_BLINK_MS = 1200
+/** Kommande skylten är så här mycket större än den nuvarande. */
+private const val AHEAD_SCALE = 1.75f
+
 /** Din hastighet och varningstexten. */
 @Composable
 fun SpeedBlock(state: UiState, fontSize: TextUnit) {
@@ -603,10 +645,6 @@ fun SpeedBlock(state: UiState, fontSize: TextUnit) {
             fontWeight = FontWeight.Black, color = Color.White
         )
         Text("km/h", fontSize = 24.sp, color = Color.White.copy(alpha = 0.7f))
-        state.guess?.let {
-            Spacer(Modifier.height(6.dp))
-            Text(it, fontSize = 15.sp, color = Color(0xFF80DEEA), textAlign = TextAlign.Center)
-        }
         if (state.tooFast) {
             Spacer(Modifier.height(12.dp))
             Text(
@@ -657,79 +695,134 @@ fun SpeedScreen() {
     }
 
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val bg = warningBackground(state.tooFast)
+    // Avaktiverad: hela sidan grå, bara "Aktivera mätning" går att trycka på.
+    val off = hasPermission && !state.running
+    val bg = if (off) Color(0xFF2A2A2A) else warningBackground(state.tooFast)
+    // Utvecklarframsidan: samma framsida, men med allt extra (när testfunktionerna är på).
+    val dev = settings.tests
+    val debug by SpeedTracker.debug.collectAsStateWithLifecycle()
+    val lastClip by VoicePack.lastPlay.collectAsStateWithLifecycle()
+    val pack by VoicePack.state.collectAsStateWithLifecycle()
+
+    /** En enda rad på den rena framsidan – bara när något inte är som det ska. */
+    @Composable
+    fun ProblemLine() {
+        val ds = dataState
+        val text = when {
+            !hasPermission -> "Appen behöver platsbehörighet"
+            ds is DataManager.State.Downloading -> "Uppdaterar data… ${DataManager.kbText(ds.read, ds.total)}"
+            ds is DataManager.State.Failed -> "Uppdateringen misslyckades: ${ds.message}"
+            state.running && state.status != NORMAL_STATUS && state.status != "Testläge" -> state.status
+            else -> null
+        } ?: return
+        Text(text, fontSize = 14.sp, color = Color.White.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+    }
+
+    /** Extra rader på utvecklarframsidan. */
+    @Composable
+    fun DevLine(text: String?, color: Color = Color.White.copy(alpha = 0.55f)) {
+        if (!text.isNullOrBlank()) Text(text, fontSize = 12.sp, color = color, textAlign = TextAlign.Center, lineHeight = 15.sp)
+    }
 
     @Composable
-    fun StatusBlock() {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            MarginWarning(settings.margin)
-            if (settings.anyTestOn) Text(
-                "TEST på", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF80DEEA),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            Text(
-                if (!hasPermission) "Appen behöver platsbehörighet" else state.status,
-                fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f), textAlign = TextAlign.Center
-            )
-            val ds = dataState
-            Text(
-                when (ds) {
-                    is DataManager.State.Ready -> "Data från ${DataManager.prettyVersion(ds.version)}"
-                    is DataManager.State.Downloading -> "Uppdaterar data… ${DataManager.kbText(ds.read, ds.total)}"
-                    is DataManager.State.Failed -> "Uppdateringen misslyckades: ${ds.message}"
-                    else -> ""
-                },
-                fontSize = 12.sp, color = Color.White.copy(alpha = 0.45f), textAlign = TextAlign.Center
-            )
-            if (hasPermission) {
-                Spacer(Modifier.height(12.dp))
-                if (state.running) {
-                    OutlinedButton(onClick = { SpeedService.stop(ctx) }) { Text("Stoppa", color = Color.White) }
-                } else {
-                    Button(onClick = { SpeedService.start(ctx) }) { Text("Starta") }
-                }
-            }
+    fun DevTop() {
+        DevLine(
+            "TEST · röst: ${settings.heckleOn.label.lowercase()}",
+            DevCyan,
+        )
+    }
+
+    @Composable
+    fun DevUnderSign() {
+        // Påhittad gräns: −10 / +10, och tillbaka till vägens riktiga.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 4.dp)) {
+            OutlinedButton(onClick = { SpeedTracker.stepManual(-10) }, contentPadding = PaddingValues(horizontal = 10.dp)) {
+                Text("−10", color = Color.White) }
+            if (state.manual) TextButton(onClick = { SpeedTracker.clearManual() }) { Text("Riktig gräns", color = DevCyan) }
+            OutlinedButton(onClick = { SpeedTracker.stepManual(10) }, contentPadding = PaddingValues(horizontal = 10.dp)) {
+                Text("+10", color = Color.White) }
         }
+        DevLine(listOfNotNull(
+            debug.road,
+            debug.accuracy?.let { "GPS ±${it.toInt()} m · ${debug.satsUsed}/${debug.satsTotal} satelliter" },
+        ).joinToString("\n"))
+    }
+
+    @Composable
+    fun DevBottom() {
+        DevLine(state.guess, DevCyan)
+        DevLine(lastClip?.let { "Röst: $it" })
+        val ds = dataState
+        DevLine(listOfNotNull(
+            state.status,
+            (ds as? DataManager.State.Ready)?.let { "Data ${DataManager.prettyVersion(it.version)}" },
+            (pack as? VoicePack.State.Ready)?.let { "${it.clips} klipp" },
+            "v${BuildConfig.VERSION_NAME}",
+        ).joinToString(" · "))
     }
 
     Box(Modifier.fillMaxSize().background(bg).safeDrawingPadding().padding(16.dp)) {
-        // Inställningar uppe till vänster – visar valt fordon och marginal.
-        OutlinedButton(onClick = { showSettings = true }, modifier = Modifier.align(Alignment.TopStart)) {
-            Text(
-                "⚙ " + settings.vehicle.label + (if (settings.trailer) " + släp" else "") +
-                        (if (settings.margin > 0) " · +${settings.margin} km/h" else if (settings.margin < 0) " · ${settings.margin} km/h" else ""),
-                color = Color.White
-            )
-        }
-        if (landscape) {
-            // Liggande: skylten till vänster, hastigheten till höger.
-            Row(
-                Modifier.fillMaxSize().padding(top = 44.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SignBlock(state, 150.dp) { showTest = true }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    SpeedBlock(state, 110.sp)
-                    Spacer(Modifier.height(8.dp))
-                    StatusBlock()
+        // Allt utom "Aktivera mätning" – grått och otryckbart när mätningen är avaktiverad.
+        Box(Modifier.fillMaxSize().then(if (off) Modifier.grayscale() else Modifier)) {
+            // Kugghjulet uppe till vänster, "Avaktivera mätning" uppe till höger.
+            IconButton(onClick = { showSettings = true }, modifier = Modifier.align(Alignment.TopStart)) {
+                IkonBild(Ikon.KUGGE, 28, Color.White.copy(alpha = 0.8f))
+            }
+            // Högst upp i mitten: fordon och marginal, t.ex. "Personbil · +1 km/h", i en ruta vars färg visar marginalen.
+            VehicleBox(settings, Modifier.align(Alignment.TopCenter).padding(top = 6.dp))
+            if (state.running) OutlinedButton(
+                onClick = { SpeedService.stop(ctx) },
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.align(Alignment.TopEnd).height(36.dp),
+            ) { Text("Avaktivera mätning", fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f)) }
+
+            if (landscape) {
+                // Liggande: skylten till vänster, hastigheten till höger.
+                Row(
+                    Modifier.fillMaxSize().padding(top = 44.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (dev) DevTop()
+                        SignBlock(state, 150.dp) { showTest = true }
+                        if (dev) DevUnderSign()
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        SpeedBlock(state, 110.sp)
+                        ProblemLine()
+                        if (dev) DevBottom()
+                    }
+                }
+            } else {
+                Column(
+                    Modifier.fillMaxSize().padding(top = 44.dp, bottom = 84.dp), // plats för knapparna uppe och musiken nere
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    if (dev) { DevTop(); Spacer(Modifier.height(6.dp)) }
+                    SignBlock(state, 190.dp) { showTest = true }
+                    if (dev) DevUnderSign()
+                    Spacer(Modifier.height(if (dev) 8.dp else 24.dp))
+                    SpeedBlock(state, 140.sp)
+                    Spacer(Modifier.height(12.dp))
+                    ProblemLine()
+                    if (dev) DevBottom()
                 }
             }
-        } else {
-            Column(
-                Modifier.fillMaxSize().padding(bottom = 84.dp), // plats för musikknapparna
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                SignBlock(state, 190.dp) { showTest = true }
-                Spacer(Modifier.height(24.dp))
-                SpeedBlock(state, 140.sp)
-                Spacer(Modifier.height(24.dp))
-                StatusBlock()
-            }
+            // Musikknappar längst ner, så man kan byta låt utan att lämna appen.
+            MediaControls(Modifier.align(if (landscape) Alignment.BottomEnd else Alignment.BottomCenter))
+            // Avaktiverad: fångar alla tryck så att inget under går att trycka på.
+            if (off) Box(Modifier.fillMaxSize().pointerInput(Unit) {
+                awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
+            })
         }
-        // Musikknappar längst ner, så man kan byta låt utan att lämna appen.
-        MediaControls(Modifier.align(if (landscape) Alignment.BottomEnd else Alignment.BottomCenter))
+        if (off) Button(
+            onClick = { SpeedService.start(ctx) },
+            modifier = Modifier.align(Alignment.Center).padding(top = 220.dp).height(56.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+        ) { Text("Aktivera mätning", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
     }
 
     if (showSettings) {
@@ -745,19 +838,37 @@ fun SpeedScreen() {
     }
 }
 
-/** Gul varningsruta på framsidan när marginalen inte står på 0, så man inte glömmer att ställa tillbaka den. */
+/**
+ * Fordon och marginal i en ruta: grön vid minus (varnar tidigare), gul vid +1 och +2,
+ * röd från +3. Ingen färg vid 0.
+ */
 @Composable
-private fun MarginWarning(margin: Int) {
-    if (margin == 0) return
+private fun VehicleBox(s: Settings, modifier: Modifier = Modifier) {
+    val m = s.margin
+    val text = s.vehicle.label + (if (s.trailer) " + släp" else "") +
+        (if (m > 0) " · +$m km/h" else if (m < 0) " · $m km/h" else "")
+    val (box, fg) = when {
+        m < 0 -> Color(0xFF2E7D32) to Color.White
+        m == 0 -> Color.Transparent to Color.White.copy(alpha = 0.8f)
+        m <= 2 -> Color(0xFFFFC800) to Color.Black          // vit text syns dåligt på gult
+        else -> Color(0xFFC62828) to Color.White
+    }
     Text(
-        if (margin < 0) "⚠ Marginal ${margin} km/h – varnar redan under gränsen"
-        else "⚠ Marginal +${margin} km/h – varnar först mer än ${margin} km/h över",
-        fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.Black, textAlign = TextAlign.Center,
-        modifier = Modifier.padding(bottom = 12.dp)
-            .background(Color(0xFFFFCC00), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+        text, fontSize = 14.sp, fontWeight = if (m != 0) FontWeight.Bold else FontWeight.Normal, color = fg,
+        modifier = modifier.background(box, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
     )
 }
+
+/** Status som inte är något problem (visas inte på den rena framsidan). */
+private const val NORMAL_STATUS = "Hastighetsdata: Trafikverket (ISA)"
+private val DevCyan = Color(0xFF80DEEA)
+
+/** Gör allt innehåll grått (avaktiverad mätning). */
+private fun Modifier.grayscale() = this
+    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+    .drawWithContent { drawContent(); drawRect(Color.Gray, blendMode = androidx.compose.ui.graphics.BlendMode.Saturation) }
+
 
 /** Röstpaketets läge i testmenyn, med knapp för att hämta det. */
 @Composable
