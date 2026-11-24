@@ -177,13 +177,14 @@ class SpeedData private constructor(private val b: ByteBuffer) {
 class RoadMatcher {
     private var current: SpeedData.Candidate? = null
     private var held = 0                 // antal GPS-punkter på nuvarande sträcka
+    private var since = 0                // antal GPS-punkter sedan appen hittade en väg
     private var pendingId: Int? = null   // sträcka som håller på att bekräftas
     private var pendingCount = 0
     private var lastE = Double.NaN
     private var lastN = Double.NaN
 
     fun reset() {
-        current = null; held = 0; pendingId = null; pendingCount = 0; lastE = Double.NaN; lastN = Double.NaN; misses = 0
+        current = null; held = 0; since = 0; pendingId = null; pendingCount = 0; lastE = Double.NaN; lastN = Double.NaN; misses = 0
     }
 
     fun match(data: SpeedData, e: Double, n: Double, accuracy: Float?, course: Float?): SpeedData.Candidate? {
@@ -215,15 +216,33 @@ class RoadMatcher {
 
         val cur = current
         val best = scored.first()
-        // Ingen väg än, eller precis börjat: ta den som passar bäst.
-        if (cur == null || held < START_FIXES) {
+        // Ingen väg än, eller precis börjat köra: ta den som passar bäst. (Inte efter varje byte – då kunde
+        // en avfart som ligger tätt intill stora vägen ta över direkt.)
+        if (fresh) since++
+        if (cur == null || since <= START_FIXES) {
             val keep = cur?.let { c -> scored.firstOrNull { it.first.id == c.id } }
             return choose(if (keep != null && keep.second <= best.second + 3.0) keep.first else best.first, fresh)
         }
         val curNow = scored.firstOrNull { it.first.id == cur.id }
+        /**
+         * Avfart: vägen delar sig, [c] har lägre gräns, men en annan fortsättning som passar nästan
+         * lika bra behåller gränsen. Vid delningen ligger linjerna tätt, så då krävs mer för att byta.
+         */
+        fun forkLower(c: SpeedData.Candidate, s: Double): Boolean {
+            val toRamp = c.ramp && !cur.ramp                     // från stora vägen in på en avfart
+            if (!(c.kmh < cur.kmh || toRamp) || cur.linkTo(c) != SpeedData.Link.END) return false
+            if (toRamp) return true
+            fun same(e1: Double, n1: Double, e2: Double, n2: Double) = hypot(e1 - e2, n1 - n2) <= SpeedData.END_TOL
+            // Delar sig från samma punkt som nuvarande sträcka (två vägar som går isär).
+            if (same(c.startE, c.startN, cur.startE, cur.startN) || same(c.endE, c.endN, cur.endE, cur.endN)) return true
+            return scored.any { (o, os) -> o.id != cur.id && o.id != c.id && o.kmh >= cur.kmh && os <= s + FORK_SIMILAR && cur.linkTo(o) == SpeedData.Link.END }
+        }
         // Nuvarande sträcka är borta (för långt bort / fel håll): ta bästa anslutande, annars bästa.
         if (curNow == null) {
-            val next = scored.firstOrNull { cur.linkTo(it.first) != SpeedData.Link.NONE } ?: best
+            val linked = scored.filter { cur.linkTo(it.first) != SpeedData.Link.NONE }
+            val first = linked.firstOrNull()
+            val next = if (first != null && forkLower(first.first, first.second))
+                (linked.firstOrNull { it.first.kmh >= cur.kmh && it.second <= first.second + FORK_SIMILAR } ?: first) else first ?: best
             return choose(next.first, fresh)
         }
         // Bästa utmanare: en sträcka som passar tillräckligt mycket bättre, beroende på hur den hänger ihop.
@@ -231,7 +250,8 @@ class RoadMatcher {
         val challenger = scored.firstOrNull { (c, s) ->
             if (c.id == cur.id) return@firstOrNull false
             val (margin, fixes) = when (cur.linkTo(c)) {
-                SpeedData.Link.END -> (if (course == null) 3.0 else 0.0) to 1
+                SpeedData.Link.END -> if (forkLower(c, s)) FORK_MARGIN to FORK_FIXES
+                    else (if (course == null) 3.0 else 0.0) to 1
                 SpeedData.Link.MID -> 2.0 to 2
                 SpeedData.Link.NONE -> 12.0 to 3
             }
@@ -260,5 +280,10 @@ class RoadMatcher {
     private companion object {
         /** Så många GPS-punkter i början där vi bara tar den väg som passar bäst. */
         const val START_FIXES = 3
+        /** Avfart med lägre gräns: så mycket bättre (m) och så många GPS-punkter i rad innan bytet. */
+        const val FORK_MARGIN = 4.0
+        const val FORK_FIXES = 3
+        /** En annan fortsättning som passar inom så här mycket (m) räknas som "lika trolig". */
+        const val FORK_SIMILAR = 10.0
     }
 }

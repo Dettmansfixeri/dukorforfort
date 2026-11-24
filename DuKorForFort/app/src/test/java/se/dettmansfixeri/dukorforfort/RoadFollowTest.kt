@@ -56,7 +56,7 @@ class RoadFollowTest {
     }
 
     /** Kör [runs] gånger med olika slumpfel. Returnerar en lista med fel (tom = allt rätt). */
-    private fun check(data: SpeedData, legs: List<Leg>, runs: Int = 30, gpsError: Double = 3.0, old: Boolean = false): List<String> {
+    private fun check(data: SpeedData, legs: List<Leg>, runs: Int = 30, gpsError: Double = 3.0, old: Boolean = false, lateOk: Double = 0.0): List<String> {
         val fixes = drive(legs)
         val errors = ArrayList<String>()
         for (seed in 1..runs) {
@@ -72,7 +72,7 @@ class RoadFollowTest {
                 val ok = got != null && got.distanceTo(leg.probe.first, leg.probe.second) < 0.6
                 // Precis vid bytet får det skilja en GPS-punkt (ca 1 s).
                 val slack = legs.maxOf { it.kmh } / 3.6 + 2
-                if (!ok && f.distToBoundary > slack) {
+                if (!ok && f.distToBoundary > slack + lateOk) {
                     errors += "körning $seed vid ${f.e.toInt()},${f.n.toInt()} (${leg.name}): fick ${got?.kmh ?: "-"} km/h"
                 }
             }
@@ -170,5 +170,28 @@ class RoadFollowTest {
 
     @Test fun stangjarnsgatanVasterut() = assertNoErrors(check(data(), listOf(
         Leg("Stångjärnsgatan 40", 40, 583713.0 to 6607626.5, 583942 to 6607739, 583484 to 6607514),
+    )))
+
+    // E-väg österut på 110 (476011, 6213423): avfarten med 90 delar sig nästan rakt fram,
+    // bara några meter från stora vägen i början. Ska stanna på 110.
+    private val forbiAvfartLegs = listOf(
+        Leg("110 före avfarten", 110, 475778.5 to 6213405.0, 475710 to 6213402, 475847 to 6213408, 476011 to 6213423),
+        Leg("110 efter avfarten", 110, 476103.0 to 6213437.5, 476011 to 6213423, 476195 to 6213452, 476331 to 6213480),
+    )
+
+    @Test fun forbiAvfartOsterut() = assertNoErrors(check(data(), forbiAvfartLegs))
+
+    @Test fun forbiAvfartGpsFel5m() = assertNoErrors(check(data(), forbiAvfartLegs, gpsError = 5.0))
+
+    // Samma ställe men man tar avfarten: 90 får komma några sekunder sent, men ska komma.
+    @Test fun inPaAvfarten() = assertNoErrors(check(data(), listOf(
+        Leg("110 före avfarten", 110, 475778.5 to 6213405.0, 475710 to 6213402, 475847 to 6213408, 476011 to 6213423),
+        Leg("avfart 90", 90, 476174.0 to 6213425.0, 476011 to 6213423, 476092 to 6213428, 476256 to 6213422, 476308 to 6213426),
+    ), lateOk = 110.0))
+
+    // Vänsterkurva på 110 norrut (617317, 6724144): avfarten med 90 går rakare fram än stora vägen.
+    @Test fun forbiAvfartIVansterkurva() = assertNoErrors(check(data(), listOf(
+        Leg("110 före avfarten", 110, 617425.5 to 6723990.5, 617462 to 6723936, 617389 to 6724045, 617317 to 6724144),
+        Leg("110 efter avfarten", 110, 617257.5 to 6724216.5, 617317 to 6724144, 617198 to 6724289, 617102 to 6724394),
     )))
 }

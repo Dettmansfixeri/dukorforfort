@@ -386,7 +386,14 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                         SwitchRow("Ljud", null, s.beep) { s = s.copy(beep = it) }
                         if (s.beep) {
                             SoundMode.entries.forEach { m -> RadioRow(m.label, s.sound == m) { s = s.copy(sound = m) } }
-                            OutlinedButton(onClick = { Preview.sound(ctx, s.sound) }) { Text("▶ Provlyssna ljudet") }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { Preview.sound(ctx, s.sound) }) {
+                                    IkonBild(Ikon.SPELA); Spacer(Modifier.width(8.dp)); Text("Provlyssna ljudet")
+                                }
+                                OutlinedButton(onClick = { Preview.stop() }) {
+                                    IkonBild(Ikon.STOPP); Spacer(Modifier.width(8.dp)); Text("Stopp")
+                                }
+                            }
                             Text(
                                 if (s.sound == SoundMode.SILENT) "Spelar du musik pausas den i 4 sekunder, annars hörs pipet."
                                 else "Låter som 2, 5 och sedan 10 km/h över.",
@@ -400,7 +407,7 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                         if (s.heckle != HeckleMode.OFF && !s.silentOn) OutlinedButton(onClick = {
                             Preview.stop()
                             SpeedTracker.prepareVoice(ctx).preview(s.heckle, s.voicesOn)
-                        }) { Text("▶ Provlyssna rösten") }
+                        }) { IkonBild(Ikon.SPELA); Spacer(Modifier.width(8.dp)); Text("Provlyssna rösten") }
                     }
 
                     SettingsPage.VEHICLE -> {
@@ -425,10 +432,12 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
 
                     SettingsPage.DATA -> {
                         Text(DataManager.localVersion(ctx)?.let { "Data från ${DataManager.prettyVersion(it)}" } ?: "Ingen data", fontWeight = FontWeight.Bold)
-                        Text("Ny data hämtas av sig själv en gång per dygn, även när appen är stängd.", fontSize = 13.sp, color = Dim)
+                        Text("Appen kollar efter ny data en gång per dygn, även när den är stängd. Finns det ny laddas den ner.", fontSize = 13.sp, color = Dim)
                         Spacer(Modifier.height(8.dp))
-                        SwitchRow("Får använda mobildata",
-                            "Av: bara på wifi. Datan är ungefär ${DataManager.knownSize / 1048576} MB.", mobileData) {
+                        SwitchRow("Ladda ner med mobildata",
+                            if (mobileData) "Ny data laddas ner direkt, även på mobildata. Det kostar ungefär " +
+                                "${DataManager.knownSize / 1048576} MB, men bara när det finns ny data."
+                            else "Ny data laddas bara ner när du är på wifi.", mobileData) {
                             DataManager.setMobileData(ctx, it)
                         }
                     }

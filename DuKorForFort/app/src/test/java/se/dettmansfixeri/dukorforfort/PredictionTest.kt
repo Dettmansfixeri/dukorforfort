@@ -34,7 +34,7 @@ class PredictionTest {
 
     @Test fun larSigInbromsning() {
         val b = BrakeLearner()
-        assertEquals(BrakeLearner.DEFAULT, b.decel, 1e-9)
+        assertEquals(0.75, b.decel(90.0, 72.0), 1e-9)
         repeat(3) { r ->
             val start = r * 100.0
             // Släpper gasen: 90 → ~72 km/h med 1,0 m/s² i 5 s, sedan jämn fart.
@@ -42,7 +42,15 @@ class PredictionTest {
             for (i in 6..10) b.add(start + i, 20.0)
         }
         assertEquals(3, b.count)
-        assertEquals(1.0, b.decel, 0.05)
+        assertEquals(1.0, b.decel(90.0, 72.0), 0.05)
+        // Andra fartområden påverkas inte.
+        assertEquals(1.0, b.decel(50.0, 30.0), 1e-9)
+        assertEquals(0.65, b.decel(110.0, 90.0), 1e-9)
+    }
+
+    @Test fun lagFartBromsarFortare() {
+        val b = BrakeLearner()
+        assertTrue(b.decel(50.0, 30.0) > b.decel(110.0, 90.0))
     }
 
     @Test fun hardInbromsningRaknasInte() {

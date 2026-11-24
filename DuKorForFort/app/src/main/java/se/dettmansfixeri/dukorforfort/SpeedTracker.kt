@@ -424,7 +424,11 @@ object SpeedTracker {
                 val v = loc.speed.toDouble()
                 val v2 = (a.kmh + s.margin) / 3.6
                 if (v > v2 + 0.5) {
-                    val dec = if (s.learnBrakeOn) brake.decel else BrakeLearner.DEFAULT
+                    // Olika inbromsning beroende på farten: 50 → 30 tappar fortare än 110 → 90.
+                    val fromKmh = v * 3.6
+                    val toKmh = v2 * 3.6
+                    val dec = if (s.learnBrakeOn) brake.decel(fromKmh, toKmh)
+                    else BrakeLearner.DEFAULTS[BrakeLearner.band((fromKmh + toKmh) / 2)]
                     // Rösten säger till så tidigt att man hinner höra hela frasen och sedan släppa gasen.
                     val talk = if (s.silentOn) 0.0 else Ahead.SPEAK_S
                     val need = (v * v - v2 * v2) / (2 * dec) + v * (Ahead.REACTION_S + talk)
@@ -447,7 +451,7 @@ object SpeedTracker {
         val guess = if (!s.showGuessOn) null else listOfNotNull(
             landing?.takeIf { speed != null && it > speed + 1 }?.let { "Landar på $it km/h" },
             aheadText,
-            if (s.learnBrakeOn) String.format(java.util.Locale("sv"), "Inbromsning %.2f m/s² (%d mätningar)", brake.decel, brake.count) else null,
+            if (s.learnBrakeOn) "Inbromsning m/s²: ${brake.summary()}" else null,
         ).joinToString("\n").ifEmpty { null }
 
         _state.update {

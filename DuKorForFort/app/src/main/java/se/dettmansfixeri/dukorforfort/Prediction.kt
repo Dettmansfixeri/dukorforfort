@@ -63,13 +63,27 @@ class SpeedTrend {
  * utan hård inbromsning). Används av förvarningen om lägre gräns.
  */
 class BrakeLearner {
-    private var learned = DEFAULT
-    /** Antal inlärda tillfällen. */
-    var count = 0
-        private set
+    /**
+     * En inbromsning per fartområde: i låg fart och låg växel tappar bilen fortare
+     * (motorbromsen tar mer) än i hög fart, så 50 → 30 och 110 → 90 räknas var för sig.
+     */
+    private val learned = DEFAULTS.copyOf()
+    private val counts = IntArray(DEFAULTS.size)
 
-    /** Inbromsningen att räkna med (m/s²): det inlärda värdet efter några mätningar, annars standard. */
-    val decel get() = if (count >= MIN_COUNT) learned else DEFAULT
+    /** Antal inlärda tillfällen, alla fartområden. */
+    val count get() = counts.sum()
+
+    /** Inbromsningen (m/s²) när farten sjunker från [fromKmh] till [toKmh]: inlärd efter några mätningar, annars standard. */
+    fun decel(fromKmh: Double, toKmh: Double): Double {
+        val i = band((fromKmh + toKmh) / 2)
+        return if (counts[i] >= MIN_COUNT) learned[i] else DEFAULTS[i]
+    }
+
+    /** Kort text per fartområde, t.ex. "under 45: 1,00 (2)". */
+    fun summary(): String = DEFAULTS.indices.joinToString(" · ") { i ->
+        val name = when (i) { 0 -> "<45"; DEFAULTS.size - 1 -> ">85"; else -> "${EDGES[i - 1].toInt()}–${EDGES[i].toInt()}" }
+        String.format(java.util.Locale("sv"), "%s: %.2f (%d)", name, if (counts[i] >= MIN_COUNT) learned[i] else DEFAULTS[i], counts[i])
+    }
 
     private var startT = Double.NaN
     private var startV = 0.0
@@ -79,13 +93,16 @@ class BrakeLearner {
     fun reset() { startT = Double.NaN }
 
     fun load(p: SharedPreferences) {
-        learned = p.getFloat("inbromsning", DEFAULT.toFloat()).toDouble()
-        count = p.getInt("inbromsning_n", 0)
+        for (i in DEFAULTS.indices) {
+            learned[i] = p.getFloat("inbromsning_$i", DEFAULTS[i].toFloat()).toDouble()
+            counts[i] = p.getInt("inbromsning_n_$i", 0)
+        }
     }
 
     fun save(ctx: Context, prefs: String) {
-        ctx.getSharedPreferences(prefs, Context.MODE_PRIVATE).edit()
-            .putFloat("inbromsning", learned.toFloat()).putInt("inbromsning_n", count).apply()
+        val ed = ctx.getSharedPreferences(prefs, Context.MODE_PRIVATE).edit()
+        for (i in DEFAULTS.indices) ed.putFloat("inbromsning_$i", learned[i].toFloat()).putInt("inbromsning_n_$i", counts[i])
+        ed.apply()
     }
 
     /** Ny fart ([t] s, [v] m/s). Sant om en ny mätning lärdes in. */
@@ -104,8 +121,9 @@ class BrakeLearner {
         if (dur >= 4.0 && drop >= 2.0) {
             val m = drop / dur
             if (m in 0.15..1.6) {
-                learned = if (count == 0) m else learned * 0.8 + m * 0.2
-                count++
+                val i = band((startV + lastV) / 2 * 3.6)
+                learned[i] = if (counts[i] == 0) m else learned[i] * 0.8 + m * 0.2
+                counts[i]++
                 got = true
             }
         }
@@ -116,9 +134,13 @@ class BrakeLearner {
     private fun begin(t: Double, v: Double) { startT = t; startV = v; lastT = t; lastV = v }
 
     companion object {
-        /** Standard tills appen lärt sig: ungefär att släppa gasen i växel. */
-        const val DEFAULT = 0.7
+        /** Gränser mellan fartområdena (km/h, medelfarten under inbromsningen). */
+        private val EDGES = doubleArrayOf(45.0, 65.0, 85.0)
+        /** Standard per fartområde tills appen lärt sig: ungefär att släppa gasen i växel. */
+        val DEFAULTS = doubleArrayOf(1.0, 0.85, 0.75, 0.65)
         private const val MIN_COUNT = 3
+
+        fun band(kmh: Double) = EDGES.count { kmh >= it }
     }
 }
 
@@ -173,8 +195,10 @@ object Ahead {
             var best: SpeedData.Candidate? = null
             var bestFwd = true
             var bestTurn = Double.MAX_VALUE
+            var keeps = false   // finns en väg framåt där gränsen inte sänks?
             for (c in data.near(exitE, exitN, SpeedData.END_TOL + 1.0)) {
                 if (c.id == prevId || c.pts.size < 4) continue
+                if (c.ramp && !cur.ramp) continue        // kör man på stora vägen följer man inte avfarten
                 val atStart = hypot(c.startE - exitE, c.startN - exitN) <= SpeedData.END_TOL
                 val atEnd = hypot(c.endE - exitE, c.endN - exitN) <= SpeedData.END_TOL
                 if (!atStart && !atEnd) continue
@@ -184,11 +208,14 @@ object Ahead {
                 val last = c.pts.size / 2 - 2
                 val entry = if (fwd) bearing(c.pts, 0) else (bearing(c.pts, last) + 180.0) % 360.0
                 val turn = SpeedData.angleDiff(exitBear, entry)
-                if (turn <= MAX_TURN && turn < bestTurn) { best = c; bestFwd = fwd; bestTurn = turn }
+                if (turn > MAX_TURN) continue
+                if (limitOf(c) >= curLimit) keeps = true
+                if (turn < bestTurn) { best = c; bestFwd = fwd; bestTurn = turn }
             }
             val b = best ?: return null
             val lim = limitOf(b)
-            if (lim < curLimit) return Result(dist, lim)
+            // Vid en delning där ena vägen behåller gränsen vet appen inte vart man kör – ingen varning.
+            if (lim < curLimit) return if (keeps) null else Result(dist, lim)
             val bp = b.pts
             val bPieces = bp.size / 2 - 1
             dist += (0 until bPieces).sumOf { pieceLen(bp, it) }
