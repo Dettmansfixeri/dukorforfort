@@ -18,7 +18,7 @@ button{cursor:pointer}button:hover{border-color:#888}
 .k .flagga.ej{color:#aaa}.k .flagga.ej input{accent-color:#888}
 .k .flagga{display:flex;align-items:center;gap:4px;color:#e88;font-size:.8em;cursor:pointer;min-width:0}
 .k .flagga input{width:16px;height:16px;accent-color:#e05050}
-.k label{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:215px}
+.k label{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:150px}
 .k input{width:20px;height:20px;accent-color:#ffcc00}
 .nr{font-weight:700;font-variant-numeric:tabular-nums;color:#ffcc00;min-width:2.4em;text-align:right}
 .om{color:#bbb;font-size:.85em}
@@ -167,17 +167,17 @@ function rita() {
     html += `<h2>${esc(fras)}</h2><div class="klipp">`;
     for (const k of lista) {
       const v = valda.has(k.nr), f = fel.has(k.nr) || autoGorOm(k), h = hord.has(k.nr);
-      html += `<div class="k${v ? ' vald' : ''}${ejVill.has(k.nr) ? ' ejvill' : ''}${f || uttal.has(k.nr) || arMarkeradAvhuggen(k) ? ' fel' : ''}${h ? ' lyssnad' : ''}" data-k="${esc(k.nr)}" title="${esc(k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo)}">
+      html += `<div class="k${v ? ' vald' : ''}${ejVill.has(k.nr) ? ' ejvill' : ''}${f || uttal.has(k.nr) || arMarkeradAvhuggen(k) ? ' fel' : ''}${h ? ' lyssnad' : ''}" data-k="${esc(k.nr)}" title="${esc(`${k.modell} · ${k.skapad}\n` + (k.stil ? 'Stil: ' + k.stil : 'Tempo: ' + k.tempo))}">
         <label><input type="checkbox" data-nr="${esc(k.nr)}"${v ? ' checked' : ''}>
         <span class="nr">${esc(k.nr)}</span>
-        <span>${esc(k.rost)}<br><span class="om">${esc(k.modell)} · ${esc(k.skapad)}</span></span></label>
+        <span>${esc(k.rost)}</span></label>
+        <label class="flagga ej" title="Klippet ska inte användas – tas bort"><input type="checkbox" data-ej="${esc(k.nr)}"${ejVill.has(k.nr) ? ' checked' : ''}>vill inte ha</label>
         <span class="langd${arLangt(k) ? ' lang' : ''}" data-langd="${esc(k.nr)}">${fmtLangd(langd[k.nr])}${arAvhugget(k) ? ' <b style="color:#e05050">avhugget?</b>' : ''}</span>
         <audio controls preload="${langd[k.nr] == null ? 'metadata' : 'none'}" src="${esc(k.fil)}"></audio>
         <span class="hord">${h ? '✓ lyssnad' : ''}</span>
         <label class="flagga" title="Klippet tar slut mitt i ett ord – spelas in igen"><input type="checkbox" data-avhugg="${esc(k.nr)}"${arMarkeradAvhuggen(k) ? ' checked' : ''}>avhugget</label>
         <label class="flagga" title="Fel uttal – spelas in igen"><input type="checkbox" data-uttal="${esc(k.nr)}"${uttal.has(k.nr) ? ' checked' : ''}>fel uttal</label>
-        <label class="flagga" title="Spela in igen: läser upp stilen, huggs av …"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>gör om</label>
-        <label class="flagga ej" title="Klippet ska inte användas – tas bort"><input type="checkbox" data-ej="${esc(k.nr)}"${ejVill.has(k.nr) ? ' checked' : ''}>vill inte ha</label></div>`;
+        <label class="flagga" title="Spela in igen: läser upp stilen, huggs av …"><input type="checkbox" data-fel="${esc(k.nr)}"${f ? ' checked' : ''}>gör om</label></div>`;
     }
     html += '</div>';
   }
