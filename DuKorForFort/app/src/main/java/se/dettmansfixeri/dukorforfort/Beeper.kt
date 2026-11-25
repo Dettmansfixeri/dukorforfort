@@ -115,9 +115,11 @@ class Beeper {
         if (p == null) return
         try {
             val pcm = render(p)
+            // Samma ljudväg som rösten (navigering). Som larm gick pipet både till telefonen och bilens
+            // Bluetooth, och när rösten sedan startade bytte Android väg och första stavelsen försvann.
             val t = AudioTrack.Builder()
                 .setAudioAttributes(
-                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM)
+                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
                 )
                 .setAudioFormat(
