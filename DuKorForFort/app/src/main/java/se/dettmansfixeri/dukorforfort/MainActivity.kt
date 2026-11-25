@@ -726,7 +726,7 @@ fun SpeedScreen() {
 
     @Composable
     fun MarkButtons() {
-        // Markera: sparar 15 s före och 15 s efter (listan och Dela finns på testsidan).
+        // Markera: sparar 30 s före och 15 s efter (listan och Dela finns på testsidan).
         // Skylt här: tryck när du passerar en skylt – platsen och datans gräns sparas i skyltar.csv.
         val left by EventLog.countdown.collectAsStateWithLifecycle()
         val signs by EventLog.signs.collectAsStateWithLifecycle()
@@ -785,7 +785,22 @@ fun SpeedScreen() {
             }
             // Fordon och marginal, t.ex. "Personbil, +1 km/h", i en ruta vars färg visar marginalen.
             // Stående: egen rad under kugghjulet och knappen (annars krockar den med "Avaktivera mätning").
-            VehicleBox(settings, Modifier.align(Alignment.TopCenter).padding(top = if (landscape) 6.dp else 48.dp))
+            // Tryck på rutan: lista med fordonstyperna, välj så stängs den.
+            Box(Modifier.align(Alignment.TopCenter).padding(top = if (landscape) 6.dp else 48.dp)) {
+                var pickVehicle by remember { mutableStateOf(false) }
+                VehicleBox(settings, Modifier.clickable { pickVehicle = true })
+                DropdownMenu(expanded = pickVehicle, onDismissRequest = { pickVehicle = false }) {
+                    Vehicle.entries.forEach { v ->
+                        DropdownMenuItem(
+                            text = { Text((if (v == settings.vehicle) "✓ " else "    ") + v.label, fontSize = 18.sp) },
+                            onClick = {
+                                pickVehicle = false
+                                if (v != settings.vehicle) SpeedTracker.setSettings(ctx, settings.copy(vehicle = v))
+                            },
+                        )
+                    }
+                }
+            }
             if (state.running) OutlinedButton(
                 onClick = { SpeedService.stop(ctx) },
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),

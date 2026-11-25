@@ -107,7 +107,7 @@ fun TestScreen(onClose: () -> Unit) {
             // ---------- Markeringar ----------
             val marks by EventLog.files.collectAsStateWithLifecycle()
             Section("Markeringar (${marks.size})")
-            Text("Knappen Markera på framsidan sparar 15 s före och 15 s efter: position, fart, gräns, väg och vilka röstklipp som spelades. " +
+            Text("Knappen Markera på framsidan sparar 30 s före och 15 s efter: position, fart, gräns, väg och vilka röstklipp som spelades. " +
                 "Filerna ligger bara i telefonen tills du trycker Dela.", fontSize = 13.sp, color = dim)
             val signs by EventLog.signs.collectAsStateWithLifecycle()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {

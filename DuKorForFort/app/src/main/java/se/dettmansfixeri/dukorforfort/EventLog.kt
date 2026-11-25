@@ -18,13 +18,13 @@ import java.time.format.DateTimeFormatter
 /**
  * Händelseloggen bakom knappen "Markera": appen minns hela tiden de senaste sekunderna
  * (position, fart, gräns, väg, förvarning och vilka röstklipp som spelades). Trycker man Markera
- * sparas 15 s före och 15 s efter i en textfil på telefonen. Filerna lämnar bara telefonen
+ * sparas 30 s före och 15 s efter i en textfil på telefonen. Filerna lämnar bara telefonen
  * om man själv trycker Dela.
  */
 object EventLog {
-    private const val BEFORE_MS = 15_000L
+    private const val BEFORE_MS = 30_000L
     private const val AFTER_MS = 15_000L
-    private const val KEEP_MS = 40_000L
+    private const val KEEP_MS = 55_000L
 
     private class Row(val t: Long, val text: String)
 
@@ -76,7 +76,7 @@ object EventLog {
     private fun add(text: String) {
         val now = SystemClock.elapsedRealtime()
         rows.addLast(Row(now, text))
-        // Under en pågående markering behövs allt från 15 s före trycket.
+        // Under en pågående markering behövs allt från 30 s före trycket.
         val keep = if (markAt > 0) markAt - BEFORE_MS else now - KEEP_MS
         while (rows.isNotEmpty() && rows.first().t < keep) rows.removeFirst()
     }
@@ -103,7 +103,7 @@ object EventLog {
         val head = buildString {
             appendLine("Du kör för fort, IDIOT! – markering ${wall.toLocalDate()} ${wall.toLocalTime().withNano(0)}")
             appendLine("App v${BuildConfig.VERSION_NAME} · ${s.vehicle.label}${if (s.trailer) " + släp" else ""} · marginal ${s.margin} · röst ${s.heckleOn.label}")
-            appendLine("Tid = sekunder från trycket (−15 … +15).")
+            appendLine("Tid = sekunder från trycket (−30 … +15).")
             appendLine()
         }
         val body = rows.filter { it.t in (at - BEFORE_MS)..(at + AFTER_MS) }.joinToString("\n") { r ->
@@ -125,7 +125,7 @@ object EventLog {
     /**
      * Knappen "Skylt här": man trycker när man passerar en skylt. Sparar platsen, färdriktningen och
      * vad datan säger om gränsen nu och 10 s senare (så syns det om datans gränsbyte ligger på fel ställe).
-     * Gör också en vanlig markering (15 s före/efter) om ingen pågår.
+     * Gör också en vanlig markering (30 s före, 15 s efter) om ingen pågår.
      */
     fun sign() {
         if (!started) return
