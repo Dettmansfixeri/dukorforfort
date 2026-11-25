@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioManager
 import android.view.KeyEvent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
@@ -41,7 +42,16 @@ object Media {
 fun MediaControls(modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     var playing by remember { mutableStateOf(Media.playing(ctx)) }
-    LaunchedEffect(Unit) { while (true) { playing = Media.playing(ctx); delay(1000) } }
+    var nowPlaying by remember { mutableStateOf<String?>(null) }
+    var allowed by remember { mutableStateOf(NowPlaying.allowed(ctx)) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            playing = Media.playing(ctx)
+            allowed = NowPlaying.allowed(ctx)
+            nowPlaying = NowPlaying.text(ctx)
+            delay(1000)
+        }
+    }
 
     @Composable
     fun Knapp(ikon: Ikon, code: Int, size: Int = 64) {
@@ -54,10 +64,26 @@ fun MediaControls(modifier: Modifier = Modifier) {
         ) { Canvas(Modifier.size((size * 0.36).dp)) { rita(ikon) } }
     }
 
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-        Knapp(Ikon.FORRA, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-        Knapp(if (playing) Ikon.PAUS else Ikon.SPELA, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 76)
-        Knapp(Ikon.NASTA, KeyEvent.KEYCODE_MEDIA_NEXT)
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Knapp(Ikon.FORRA, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            Knapp(if (playing) Ikon.PAUS else Ikon.SPELA, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 76)
+            Knapp(Ikon.NASTA, KeyEvent.KEYCODE_MEDIA_NEXT)
+        }
+        val text = nowPlaying
+        if (text != null) {
+            // Får texten inte plats rullar den från höger till vänster.
+            Text(
+                text, fontSize = 16.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 1, softWrap = false,
+                modifier = Modifier.padding(top = 6.dp).widthIn(max = 260.dp)
+                    .basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 1500, velocity = 40.dp),
+            )
+        } else if (playing && !allowed) {
+            // Utan "Tillgång till aviseringar" går det inte att se vad som spelas.
+            TextButton(onClick = { NowPlaying.openSettings(ctx) }) {
+                Text("Visa vad som spelas…", fontSize = 13.sp, color = Color.White.copy(alpha = 0.6f))
+            }
+        }
     }
 }
 
