@@ -24,6 +24,9 @@ enum class Vehicle(
     BUSS_BALTE("Buss med bälten", setOf(20, 10, 170, 40), heavy = true, cap = 100),
     BUSS("Buss utan bälten", setOf(20, 10, 170, 40), heavy = true, cap = 90),
     MOPED("Moped klass I", setOf(130, 120, 170, 40), cap = 45),
+    /** Mopedbil är en moped klass I med fyra hjul: samma regler och max 45. */
+    MOPEDBIL("Mopedbil", setOf(130, 120, 170, 40), cap = 45),
+    MOPED_II("Moped klass II", setOf(140, 120, 170, 40), cap = 25),
     A_TRAKTOR("A-traktor/EPA", setOf(270, 170, 40), cap = 30);
 
     /**

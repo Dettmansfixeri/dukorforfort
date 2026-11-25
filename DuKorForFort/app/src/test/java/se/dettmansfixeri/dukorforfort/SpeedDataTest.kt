@@ -67,6 +67,8 @@ class SpeedDataTest {
         assertEquals(80, Vehicle.TUNG_LASTBIL.cap(70, false))
         assertEquals(80, Vehicle.BUSS_BALTE.cap(110, true))
         assertEquals(45, Vehicle.MOPED.cap(70, true))
+        assertEquals(45, Vehicle.MOPEDBIL.cap(70, false))
+        assertEquals(25, Vehicle.MOPED_II.cap(70, true))
         assertTrue(160 in Vehicle.TUNG_LASTBIL.codes(true))
     }
 

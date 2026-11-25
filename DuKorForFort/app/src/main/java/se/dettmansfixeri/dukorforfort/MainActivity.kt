@@ -725,60 +725,50 @@ fun SpeedScreen() {
     }
 
     @Composable
-    fun DevTop() {
-        DevLine(
-            "TEST · röst: ${settings.heckleOn.label.lowercase()}",
-            DevCyan,
-        )
-    }
-
-    @Composable
-    fun DevUnderSign() {
-        // Påhittad gräns: −10 / +10, och tillbaka till vägens riktiga.
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(top = 4.dp)) {
-            OutlinedButton(onClick = { SpeedTracker.stepManual(-10) }, contentPadding = PaddingValues(horizontal = 10.dp)) {
-                Text("−10", color = Color.White) }
-            if (state.manual) TextButton(onClick = { SpeedTracker.clearManual() }) { Text("Riktig gräns", color = DevCyan) }
-            OutlinedButton(onClick = { SpeedTracker.stepManual(10) }, contentPadding = PaddingValues(horizontal = 10.dp)) {
-                Text("+10", color = Color.White) }
-        }
-        DevLine(listOfNotNull(
-            debug.road,
-            debug.accuracy?.let { "GPS ±${it.toInt()} m · ${debug.satsUsed}/${debug.satsTotal} satelliter" },
-        ).joinToString("\n"))
-    }
-
-    @Composable
-    fun MarkButton() {
+    fun MarkButtons() {
         // Markera: sparar 15 s före och 15 s efter (listan och Dela finns på testsidan).
         // Skylt här: tryck när du passerar en skylt – platsen och datans gräns sparas i skyltar.csv.
         val left by EventLog.countdown.collectAsStateWithLifecycle()
         val signs by EventLog.signs.collectAsStateWithLifecycle()
         var signFlash by remember { mutableStateOf(false) }
         LaunchedEffect(signFlash) { if (signFlash) { kotlinx.coroutines.delay(1500); signFlash = false } }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(vertical = 6.dp)) {
-            Button(
-                onClick = { EventLog.mark() }, enabled = state.running && left == 0,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828), contentColor = Color.White,
-                    disabledContainerColor = Color(0xFF5A2A2A), disabledContentColor = Color.White.copy(alpha = 0.8f)),
-                modifier = Modifier.height(52.dp).widthIn(min = 150.dp),
-            ) { Text(if (left > 0) "Sparar… $left s" else "Markera", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-            Button(
-                onClick = { EventLog.sign(); signFlash = true }, enabled = state.running && debug.lat != null,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0), contentColor = Color.White),
-                modifier = Modifier.height(52.dp).widthIn(min = 150.dp),
-            ) { Text(if (signFlash) "Sparad ✓" else "Skylt här" + if (signs > 0) " ($signs)" else "", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        val pad = PaddingValues(horizontal = 10.dp)
+        Button(
+            onClick = { EventLog.mark() }, enabled = state.running && left == 0, contentPadding = pad,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828), contentColor = Color.White,
+                disabledContainerColor = Color(0xFF5A2A2A), disabledContentColor = Color.White.copy(alpha = 0.8f)),
+            modifier = Modifier.height(44.dp),
+        ) { Text(if (left > 0) "Sparar $left s" else "Markera", fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+        Button(
+            onClick = { EventLog.sign(); signFlash = true }, enabled = state.running && debug.lat != null, contentPadding = pad,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0), contentColor = Color.White),
+            modifier = Modifier.height(44.dp),
+        ) { Text(if (signFlash) "Sparad ✓" else "Skylt här" + if (signs > 0) " ($signs)" else "", fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+    }
+
+    @Composable
+    fun DevUnderSign() {
+        // En rad: −10, Markera, Skylt här, +10 (−10/+10 = påhittad gräns).
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 4.dp)) {
+            OutlinedButton(onClick = { SpeedTracker.stepManual(-10) }, contentPadding = PaddingValues(horizontal = 8.dp),
+                modifier = Modifier.height(44.dp)) { Text("−10", color = Color.White) }
+            MarkButtons()
+            OutlinedButton(onClick = { SpeedTracker.stepManual(10) }, contentPadding = PaddingValues(horizontal = 8.dp),
+                modifier = Modifier.height(44.dp)) { Text("+10", color = Color.White) }
         }
+        if (state.manual) TextButton(onClick = { SpeedTracker.clearManual() }) { Text("Tillbaka till riktig gräns", color = DevCyan) }
     }
 
     @Composable
     fun DevBottom() {
-        MarkButton()
         DevLine(state.guess, DevCyan)
         DevLine(lastClip?.let { "Röst: $it" })
+        DevLine(debug.road)
+        DevLine(debug.accuracy?.let { "GPS ±${it.toInt()} m · ${debug.satsUsed}/${debug.satsTotal} satelliter" })
         val ds = dataState
         DevLine(listOfNotNull(
+            "röst ${settings.heckleOn.label.lowercase()}",
             state.status,
             (ds as? DataManager.State.Ready)?.let { "Data ${DataManager.prettyVersion(it.version)}" },
             (pack as? VoicePack.State.Ready)?.let { "${it.clips} klipp" },
@@ -810,12 +800,11 @@ fun SpeedScreen() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (dev) DevTop()
-                        SignBlock(state, 150.dp) { showTest = true }
+                        SignBlock(state, if (dev) 120.dp else 150.dp) { showTest = true }
                         if (dev) DevUnderSign()
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        SpeedBlock(state, 110.sp)
+                        SpeedBlock(state, if (dev) 77.sp else 110.sp)
                         ProblemLine()
                         if (dev) DevBottom()
                     }
@@ -826,11 +815,10 @@ fun SpeedScreen() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    if (dev) { DevTop(); Spacer(Modifier.height(6.dp)) }
-                    SignBlock(state, 190.dp) { showTest = true }
+                    SignBlock(state, if (dev) 152.dp else 190.dp) { showTest = true }
                     if (dev) DevUnderSign()
                     Spacer(Modifier.height(if (dev) 8.dp else 24.dp))
-                    SpeedBlock(state, 140.sp)
+                    SpeedBlock(state, if (dev) 98.sp else 140.sp)
                     Spacer(Modifier.height(12.dp))
                     ProblemLine()
                     if (dev) DevBottom()
