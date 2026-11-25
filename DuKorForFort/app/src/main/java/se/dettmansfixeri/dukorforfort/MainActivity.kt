@@ -49,6 +49,10 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = darkColorScheme()) { App() }
         }
     }
+
+    // Syns appen själv visas ingen rund skylt ovanpå.
+    override fun onResume() { super.onResume(); SignOverlay.appVisible = true; SignOverlay.hide(this) }
+    override fun onPause() { SignOverlay.appVisible = false; super.onPause() }
 }
 
 private const val PREFS = "installningar"
@@ -389,6 +393,13 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                             Text("${s.vehicle.label}: högst +${s.vehicle.maxMargin} km/h", fontSize = 13.sp, color = Dim)
                         }
                         SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
+                        SwitchRow("Rund skylt ovanpå andra appar", "Visas några sekunder när gränsen sänks, t.ex. när kartan är framme", s.overlay) {
+                            s = s.copy(overlay = it)
+                            if (it && !SignOverlay.allowed(ctx)) SignOverlay.openSettings(ctx)
+                        }
+                        if (s.overlay && !SignOverlay.allowed(ctx)) TextButton(onClick = { SignOverlay.openSettings(ctx) }) {
+                            Text("Tillåt \"Visa ovanpå andra appar\" för att skylten ska synas")
+                        }
                         SwitchRow("Förvarna när jag gasar på", "Varnar redan när du är på väg över gränsen, innan du är där", s.gasWarn) {
                             s = s.copy(gasWarn = it)
                         }

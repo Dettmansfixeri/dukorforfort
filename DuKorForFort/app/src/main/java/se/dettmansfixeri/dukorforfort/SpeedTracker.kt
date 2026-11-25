@@ -91,6 +91,8 @@ data class Settings(
     val testAhead: Boolean = false,
     val testLearnBrake: Boolean = false,
     val testShowGuess: Boolean = false,
+    /** Rund skylt ovanpå andra appar när gränsen sänks. */
+    val overlay: Boolean = false,
 ) {
     val aheadOn get() = tests && testAhead
     val learnBrakeOn get() = aheadOn && testLearnBrake
@@ -236,6 +238,7 @@ object SpeedTracker {
             testAhead = p.getBoolean("test_lagre_grans", false),
             testLearnBrake = p.getBoolean("test_inbromsning", false),
             testShowGuess = p.getBoolean("test_visa", false),
+            overlay = p.getBoolean("overlay", false),
         )
         brake.load(p)
     }
@@ -248,7 +251,7 @@ object SpeedTracker {
             .putString("auto", s.auto.name).putString("bil_adress", s.carAddress).putString("bil_namn", s.carName)
             .putString("ljud", s.sound.name).putBoolean("forvarna_gas", s.gasWarn).putBoolean("test", s.tests)
             .putBoolean("test_lagre_grans", s.testAhead).putBoolean("test_inbromsning", s.testLearnBrake)
-            .putBoolean("test_visa", s.testShowGuess)
+            .putBoolean("test_visa", s.testShowGuess).putBoolean("overlay", s.overlay)
             .apply()
         _settings.value = s
         if (!s.tests) manualKmh = null   // påhittad gräns bara i utvecklarläget

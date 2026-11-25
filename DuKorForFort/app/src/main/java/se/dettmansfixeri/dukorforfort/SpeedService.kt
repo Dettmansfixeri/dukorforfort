@@ -66,6 +66,17 @@ class SpeedService : Service() {
                             nm.notify(NOTIFICATION_ID, buildNotification(SpeedTracker.state.value))
                     }
             }
+            // Rund skylt ovanpå andra appar när gränsen sänks (bara när appen själv inte syns).
+            scope.launch {
+                var last: Int? = null
+                SpeedTracker.state.map { it.limitKmh to it.manual }.distinctUntilChanged().collect { (limit, manual) ->
+                    val prev = last
+                    last = limit
+                    if (limit != null && prev != null && limit < prev && !manual &&
+                        SpeedTracker.settings.value.overlay && !SignOverlay.appVisible
+                    ) SignOverlay.show(this@SpeedService, limit)
+                }
+            }
         }
         return START_NOT_STICKY
     }
@@ -79,6 +90,7 @@ class SpeedService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        SignOverlay.hide(this)
         if (SpeedTracker.state.value.running) SpeedTracker.stop()
         super.onDestroy()
     }
