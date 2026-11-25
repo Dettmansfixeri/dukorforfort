@@ -124,12 +124,15 @@ class Heckler(ctx: Context) {
 
     fun update(tooFast: Boolean, speed: Int?, limit: Int?, mode: HeckleMode) {
         this.mode = mode
-        // Beröm: räkna hur länge man hållit gränsen (nollställs när man kör för fort).
-        if (tooFast) goodSince = 0L
+        // Beröm: räkna hur länge man KÖRT inom gränsen (stillastående och krypfart räknas inte,
+        // nollställs när man kör för fort). Uppehåll i uppdateringarna räknas högst 5 s.
+        val now = System.currentTimeMillis()
+        if (tooFast) { goodMs = 0L; praisedAt = 0L }
         else if (speed != null && limit != null) {
-            if (goodSince == 0L) goodSince = System.currentTimeMillis()
+            if (speed >= PRAISE_MIN_KMH && goodTick != 0L) goodMs += (now - goodTick).coerceIn(0L, 5000L)
             goodSpeed = speed
         }
+        goodTick = now
         if (tooFast && speed != null && limit != null) {
             if (!this.tooFast) { overSince = System.currentTimeMillis(); count = 0; pendingClosing = null }
             this.speed = speed
@@ -163,17 +166,17 @@ class Heckler(ctx: Context) {
     }
 
     // ---------- Beröm ----------
-    private var goodSince = 0L   // sedan när man hållit gränsen (0 = kör för fort / okänt)
+    private var goodMs = 0L      // körtid (ms) inom gränsen i minst PRAISE_MIN_KMH sedan man senast körde för fort
+    private var goodTick = 0L
     private var goodSpeed = 0
-    private var lastPraise = 0L
+    private var praisedAt = 0L   // goodMs vid senaste berömmet (0 = inget beröm sedan man körde för fort)
 
-    /** Berömmer när man hållit gränsen en stund: första gången efter [PRAISE_AFTER], sedan högst var [PRAISE_EVERY]. */
+    /** Berömmer när man kört inom gränsen en stund: första gången efter [PRAISE_AFTER] körtid, sedan högst var [PRAISE_EVERY]. */
     private fun praiseTick() {
-        if (mode == HeckleMode.OFF || tooFast || speaking || goodSince == 0L || goodSpeed < PRAISE_MIN_KMH) return
-        val now = System.currentTimeMillis()
-        val due = if (lastPraise < goodSince) goodSince + PRAISE_AFTER else lastPraise + PRAISE_EVERY
-        if (now < due) return
-        lastPraise = now   // även om det inte gick att säga – försök inte igen varje halvsekund
+        if (mode == HeckleMode.OFF || tooFast || speaking || goodSpeed < PRAISE_MIN_KMH) return
+        val due = if (praisedAt == 0L) PRAISE_AFTER else praisedAt + PRAISE_EVERY
+        if (goodMs < due) return
+        praisedAt = goodMs   // även om det inte gick att säga – försök inte igen varje halvsekund
         ClipLines.praise(mode == HeckleMode.NICE).filter { VoicePack.has(it) }.randomOrNull()?.let { playClip(it) }
     }
 
@@ -298,6 +301,7 @@ class Heckler(ctx: Context) {
             mp.setOnErrorListener { _, w, x -> VoicePack.lastPlay.value = "Uppspelningsfel $w/$x: ${f.name}"; followUp = null; stopClip(); finished(); true }
             mp.prepare()
             speaking = true
+            onSpeaking?.invoke(true)   // tysta pipet direkt, innan rösten börjar (settern gör det först en stund senare)
             audio.requestAudioFocus(focus)
             player = mp
             lastFile = f

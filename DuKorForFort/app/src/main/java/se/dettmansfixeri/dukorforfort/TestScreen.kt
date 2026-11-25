@@ -104,6 +104,22 @@ fun TestScreen(onClose: () -> Unit) {
             }
             Text("Med \"Låtsas köra\" på börjar den prata själv efter 2 s över gränsen.", fontSize = 13.sp, color = dim)
 
+            // ---------- Markeringar ----------
+            val marks by EventLog.files.collectAsStateWithLifecycle()
+            Section("Markeringar (${marks.size})")
+            Text("Knappen Markera på framsidan sparar 15 s före och 15 s efter: position, fart, gräns, väg och vilka röstklipp som spelades. " +
+                "Filerna ligger bara i telefonen tills du trycker Dela.", fontSize = 13.sp, color = dim)
+            val signs by EventLog.signs.collectAsStateWithLifecycle()
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+                if (marks.isNotEmpty()) Button(onClick = { EventLog.share(ctx, marks) }) { Text("Dela alla (${marks.size})") }
+                if (signs > 0) Button(onClick = { EventLog.share(ctx, listOf(EventLog.signFile)) }) { Text("Dela skyltar ($signs)") }
+            }
+            for (f in marks.take(20)) Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(f.nameWithoutExtension.replace('_', ' '), color = Color.White, modifier = Modifier.weight(1f))
+                TextButton(onClick = { EventLog.share(ctx, listOf(f)) }) { Text("Dela") }
+                TextButton(onClick = { EventLog.delete(f) }) { Text("Ta bort", color = dim) }
+            }
+
             // ---------- Automatik ----------
             Section("Automatisk start")
             Info("Läge", settings.auto.label)

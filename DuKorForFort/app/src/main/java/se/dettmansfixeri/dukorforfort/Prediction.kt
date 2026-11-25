@@ -215,7 +215,10 @@ object Ahead {
             val b = best ?: return null
             val lim = limitOf(b)
             // Vid en delning där ena vägen behåller gränsen vet appen inte vart man kör – ingen varning.
-            if (lim < curLimit) return if (keeps) null else Result(dist, lim)
+            // Samma sak om en väg med minst samma gräns går vidare åt samma håll strax intill (t.ex. en avfart
+            // som inte är märkt som avfart i datan, där stora vägen fortsätter från en punkt några meter bort).
+            if (lim < curLimit) return if (keeps || keepsNearby(data, exitE, exitN, exitBear, setOf(prevId, b.id, cur.id), curLimit, limitOf)) null
+                else Result(dist, lim)
             val bp = b.pts
             val bPieces = bp.size / 2 - 1
             dist += (0 until bPieces).sumOf { pieceLen(bp, it) }
@@ -226,7 +229,26 @@ object Ahead {
         return null
     }
 
-    private fun pieceLen(p: DoubleArray, i: Int) = hypot(p[2 * i + 2] - p[2 * i], p[2 * i + 3] - p[2 * i + 1])
+    /** Så nära (m) en väg som fortsätter rakt fram måste ligga för att räknas som "stora vägen fortsätter". */
+    private const val NEARBY_M = 25.0
+
+    /** Finns en annan väg strax intill som går åt samma håll (högst [MAX_TURN]) och inte sänker gränsen? */
+    private fun keepsNearby(
+        data: SpeedData, e: Double, n: Double, bear: Double, skip: Set<Int>, curLimit: Int,
+        limitOf: (SpeedData.Candidate) -> Int,
+    ): Boolean = data.near(e, n, NEARBY_M).any { c ->
+        if (c.id in skip || c.ramp || limitOf(c) < curLimit) return@any false
+        val with = SpeedData.angleDiff(bear, c.bearing)
+        val against = SpeedData.angleDiff(bear, (c.bearing + 180.0) % 360.0)
+        when (c.direction) {
+            1 -> with <= MAX_TURN
+            2 -> against <= MAX_TURN
+            else -> minOf(with, against) <= MAX_TURN
+        }
+    }
+
+    private fun pieceLen(
+p: DoubleArray, i: Int) = hypot(p[2 * i + 2] - p[2 * i], p[2 * i + 3] - p[2 * i + 1])
 
     /** Riktningen på bit [i] (grader, 0 = norr), samma som GPS-kursen. */
     private fun bearing(p: DoubleArray, i: Int) =

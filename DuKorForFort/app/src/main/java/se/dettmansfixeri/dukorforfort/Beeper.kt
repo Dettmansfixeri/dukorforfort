@@ -35,7 +35,8 @@ class Beeper {
 
     companion object {
         private const val RATE = 22050
-        private const val DUCK = 0.25f
+        /** Volym medan rösten pratar: tyst, annars dränker pipet rösternas första stavelse. */
+        private const val DUCK = 0f
         private val SIREN = Pattern(0, 0.0, 0, "siren utan paus")
 
         /** Lägsta tonen (1 km/h över). Tonen stiger ett halvtonsteg för varje km/h, upp till [TOP_OVER]. */

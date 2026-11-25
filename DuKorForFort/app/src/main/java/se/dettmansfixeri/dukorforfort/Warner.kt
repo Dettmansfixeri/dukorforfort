@@ -111,7 +111,7 @@ class Warner(ctx: Context) {
         apply(if (late) maxOf(latestOver, minOf(LATE_LEVEL, sirenAt - 1)) else latestOver)
     }
 
-    /** Pip och tick-tick tystare medan rösten pratar. */
+    /** Pip och tick-tick tysta medan rösten pratar. */
     fun duck(on: Boolean) { beeper.duck(on); clicker.duck(on) }
 
     /** Förvarning om lägre gräns: tick-tick var [periodMs] (null = tyst). Hörs bara när ingen varning pågår. */

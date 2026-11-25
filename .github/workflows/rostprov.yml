@@ -23,6 +23,7 @@ on:
       - verktyg/rostval.txt
       - verktyg/rostgorom.txt
       - verktyg/rostprov.mjs
+      - verktyg/rostprov-val.php
       - .github/workflows/rostprov.yml
   workflow_dispatch:
     inputs:
@@ -139,6 +140,7 @@ jobs:
             mkdir -pf rostprov/ljud;
             mirror --reverse ./ut/ljud/ ./rostprov/ljud/;
             put ./ut/index.html -o rostprov/index.html;
+            put ./verktyg/rostprov-val.php -o rostprov/val.php;
             put ./ut/godkanda.html -o rostprov/godkanda.html;
             put ./ut/rostpaket.zip -o rostprov/rostpaket.zip;
             put ./ut/rostpaket.json -o rostprov/rostpaket.json;

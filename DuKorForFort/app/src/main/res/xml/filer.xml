@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Bara den nedladdade uppdateringen delas med Androids installation. -->
+<!-- Den nedladdade uppdateringen (till Androids installation) och markeringarna (bara när man själv trycker Dela). -->
 <paths>
     <cache-path name="uppdatering" path="uppdatering/" />
+    <files-path name="markeringar" path="markeringar/" />
 </paths>

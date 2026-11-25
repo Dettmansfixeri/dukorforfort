@@ -167,7 +167,7 @@ fun AppUpdateDialog(s: AppUpdater.State) {
                     is AppUpdater.State.Downloading -> {
                         Text("Laddar ner version ${s.remote.version}… ${(s.progress * 100).toInt()} %")
                         Spacer(Modifier.height(12.dp))
-                        LinearProgressIndicator(progress = { s.progress }, modifier = Modifier.fillMaxWidth())
+                        LinearProgressIndicator(progress = { s.progress }, modifier = Modifier.fillMaxWidth(), gapSize = 0.dp, drawStopIndicator = {})
                     }
                     is AppUpdater.State.Ready -> Text(
                         if (AppUpdater.mayInstall(ctx)) "Klar! Tryck Installera."
@@ -245,7 +245,7 @@ fun DownloadScreen(progress: Float?, error: String?, detail: String? = null, onD
             )
             Spacer(Modifier.height(28.dp))
             if (progress != null) {
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(8.dp))
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(8.dp), gapSize = 0.dp, drawStopIndicator = {})
                 Spacer(Modifier.height(12.dp))
                 Text("Laddar ner… ${(progress * 100).toInt()} %" + (detail?.let { "  ·  $it" } ?: ""), color = Color.White.copy(alpha = 0.7f))
             } else {
@@ -750,7 +750,31 @@ fun SpeedScreen() {
     }
 
     @Composable
+    fun MarkButton() {
+        // Markera: sparar 15 s före och 15 s efter (listan och Dela finns på testsidan).
+        // Skylt här: tryck när du passerar en skylt – platsen och datans gräns sparas i skyltar.csv.
+        val left by EventLog.countdown.collectAsStateWithLifecycle()
+        val signs by EventLog.signs.collectAsStateWithLifecycle()
+        var signFlash by remember { mutableStateOf(false) }
+        LaunchedEffect(signFlash) { if (signFlash) { kotlinx.coroutines.delay(1500); signFlash = false } }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(vertical = 6.dp)) {
+            Button(
+                onClick = { EventLog.mark() }, enabled = state.running && left == 0,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828), contentColor = Color.White,
+                    disabledContainerColor = Color(0xFF5A2A2A), disabledContentColor = Color.White.copy(alpha = 0.8f)),
+                modifier = Modifier.height(52.dp).widthIn(min = 150.dp),
+            ) { Text(if (left > 0) "Sparar… $left s" else "Markera", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+            Button(
+                onClick = { EventLog.sign(); signFlash = true }, enabled = state.running && debug.lat != null,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0), contentColor = Color.White),
+                modifier = Modifier.height(52.dp).widthIn(min = 150.dp),
+            ) { Text(if (signFlash) "Sparad ✓" else "Skylt här" + if (signs > 0) " ($signs)" else "", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        }
+    }
+
+    @Composable
     fun DevBottom() {
+        MarkButton()
         DevLine(state.guess, DevCyan)
         DevLine(lastClip?.let { "Röst: $it" })
         val ds = dataState
@@ -769,8 +793,9 @@ fun SpeedScreen() {
             IconButton(onClick = { showSettings = true }, modifier = Modifier.align(Alignment.TopStart)) {
                 IkonBild(Ikon.KUGGE, 28, Color.White.copy(alpha = 0.8f))
             }
-            // Högst upp i mitten: fordon och marginal, t.ex. "Personbil · +1 km/h", i en ruta vars färg visar marginalen.
-            VehicleBox(settings, Modifier.align(Alignment.TopCenter).padding(top = 6.dp))
+            // Fordon och marginal, t.ex. "Personbil, +1 km/h", i en ruta vars färg visar marginalen.
+            // Stående: egen rad under kugghjulet och knappen (annars krockar den med "Avaktivera mätning").
+            VehicleBox(settings, Modifier.align(Alignment.TopCenter).padding(top = if (landscape) 6.dp else 48.dp))
             if (state.running) OutlinedButton(
                 onClick = { SpeedService.stop(ctx) },
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -797,7 +822,7 @@ fun SpeedScreen() {
                 }
             } else {
                 Column(
-                    Modifier.fillMaxSize().padding(top = 44.dp, bottom = 84.dp), // plats för knapparna uppe och musiken nere
+                    Modifier.fillMaxSize().padding(top = 84.dp, bottom = 84.dp), // plats för knapparna och fordonsrutan uppe, musiken nere
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -846,7 +871,7 @@ fun SpeedScreen() {
 private fun VehicleBox(s: Settings, modifier: Modifier = Modifier) {
     val m = s.margin
     val text = s.vehicle.label + (if (s.trailer) " + släp" else "") +
-        (if (m > 0) " · +$m km/h" else if (m < 0) " · $m km/h" else "")
+        (if (m > 0) ", +$m km/h" else if (m < 0) ", $m km/h" else "")
     val (box, fg) = when {
         m < 0 -> Color(0xFF2E7D32) to Color.White
         m == 0 -> Color.Transparent to Color.White.copy(alpha = 0.8f)

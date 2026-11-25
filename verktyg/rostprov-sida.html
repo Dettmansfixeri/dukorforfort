@@ -65,8 +65,8 @@ h1.grupp{font-size:1.5em;margin:1.6em 0 .2em;padding:6px 10px;background:#ffcc00
     <button id="rensaFel">Rensa</button>
   </div>
   <div class="rad">
-    <button id="skicka" style="font-weight:700">Skicka val till GitHub</button>
-    <span class="info">Öppnar GitHub med dina val ifyllda – tryck "Commit changes". Klipp som varken är godkända eller ska göras om tas bort.</span>
+    <button id="skicka" style="font-weight:700">Skicka val</button>
+    <span class="info">Sparar dina val på servern – sedan Run workflow. Klipp som varken är godkända eller ska göras om tas bort.</span>
   </div>
 </div>
 <script>
@@ -315,24 +315,37 @@ $('rensa').addEventListener('click', () => {
   valda.clear(); spara(); rita();
 });
 
-// Skicka val: en ny fil i verktyg/val/ på GitHub med godkända, gör om och bortvalda.
-// Röstprov läser alla sådana filer, så inga listor behöver kopieras.
-$('skicka').addEventListener('click', () => {
+// Skicka val: sparas på servern (val.php), Röstprov hämtar dem därifrån.
+// Kodordet frågas första gången och sparas i webbläsaren. Det första som skickas blir det rätta.
+$('skicka').addEventListener('click', async () => {
   const vantar = klipp.filter((k) => !k.godkand && !k.bort && !k.ersatt && !k.gorom).map((k) => k.nr);
   const gorOm = ($('felkoder').value.match(/\d+/g) || []).map((n) => n.padStart(3, '0')).filter((nr) => !ejVill.has(nr));
   const godk = [...valda].filter((nr) => !gorOm.includes(nr)).sort((a, b) => a - b);
   const bortval = vantar.filter((nr) => !valda.has(nr) && !gorOm.includes(nr)).sort((a, b) => a - b);
   if (!godk.length && !gorOm.length) { alert('Inga val att skicka.'); return; }
   if (!confirm(`Skicka ${godk.length} godkända, ${gorOm.length} att göra om och ${bortval.length} som tas bort?`)) return;
-  const nu = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  const namn = `${nu.getFullYear()}-${p(nu.getMonth() + 1)}-${p(nu.getDate())}-${p(nu.getHours())}${p(nu.getMinutes())}${p(nu.getSeconds())}.txt`;
-  const text = `# Val från lyssningssidan ${nu.toLocaleString('sv-SE')}
-godkända: ${godk.join(', ')}
+  let kod = '';
+  try { kod = localStorage.getItem('rostkod') || ''; } catch (e) {}
+  if (!kod) kod = (prompt('Kodord (första gången bestämmer du det, minst 4 tecken):') || '').trim();
+  if (!kod) return;
+  const text = `godkända: ${godk.join(', ')}
 gör om: ${gorOm.join(', ')}
 ta bort: ${bortval.join(', ')}
 `;
-  window.open('https://github.com/Dettmansfixeri/dukorforfort/new/main/verktyg/val?filename=' + encodeURIComponent(namn) + '&value=' + encodeURIComponent(text), '_blank');
+  const knapp = $('skicka');
+  knapp.disabled = true;
+  try {
+    const r = await fetch('val.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kod, text }) });
+    const svar = await r.json().catch(() => ({}));
+    if (r.status === 403) { try { localStorage.removeItem('rostkod'); } catch (e) {} alert('Fel kodord. Försök igen.'); return; }
+    if (!r.ok) { alert('Gick inte att skicka: ' + (svar.fel || r.status)); return; }
+    try { localStorage.setItem('rostkod', kod); } catch (e) {}
+    alert('Skickat! Tryck Run workflow i Röstprov när du vill spela in.');
+  } catch (e) {
+    alert('Gick inte att skicka: ' + e.message);
+  } finally {
+    knapp.disabled = false;
+  }
 });
 
 fetch('bibliotek.json', { cache: 'no-store' }).then((r) => r.json()).then((b) => {

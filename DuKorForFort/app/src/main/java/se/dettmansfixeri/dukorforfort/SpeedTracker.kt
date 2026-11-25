@@ -110,6 +110,8 @@ data class DebugInfo(
     val lat: Double? = null,
     val lon: Double? = null,
     val fixTime: Long = 0,
+    /** Färdriktning i grader (0 = norr), null om GPS:en inte vet. */
+    val bearing: Float? = null,
     val road: String? = null,
 )
 
@@ -302,6 +304,7 @@ object SpeedTracker {
         prefsCtx = ctx
         loadSettings(ctx)
         DataManager.load(ctx)
+        EventLog.start(ctx)
         accel.reset()
         brake.reset()
         late = false; warnedFor = null; warnedAt = null
@@ -389,7 +392,8 @@ object SpeedTracker {
         if ((speed ?: 0) >= AUTO_ARM_KMH) { armed = true; exitAt = null }
         _debug.update {
             it.copy(accuracy = if (loc.hasAccuracy()) loc.accuracy else null,
-                lat = loc.latitude, lon = loc.longitude, fixTime = now)
+                lat = loc.latitude, lon = loc.longitude, fixTime = now,
+                bearing = if (loc.hasBearing() && loc.hasSpeed() && loc.speed > 2f) loc.bearing else null)
         }
         if (simulating) return
 

@@ -48,13 +48,25 @@ const bib = JSON.parse(fs.readFileSync(kalla, 'utf8'));
 if (!Number.isInteger(bib.nasta) || !Array.isArray(bib.klipp)) { console.error('bibliotek.json är trasig'); process.exit(1); }
 const nummer = (n) => String(n).padStart(3, '0');
 
-// Val som skickats från lyssningssidan (knappen "Skicka val till GitHub" lägger en fil i verktyg/val/).
+// Val som skickats från lyssningssidan: knappen "Skicka val" sparar dem på servern (äldre ligger i verktyg/val/).
 // Läses äldst först – ett senare val av samma klipp vinner. Gäller ovanpå listorna rostval/rostgorom/rostbort.
 const skickat = { godkanda: new Set(), gorom: new Set(), bort: new Set() };
 const valMapp = new URL('val/', import.meta.url);
+const valfiler = [];
 if (fs.existsSync(valMapp)) {
-  for (const f of fs.readdirSync(valMapp).filter((f) => f.endsWith('.txt')).sort()) {
-    for (const rad of fs.readFileSync(new URL(f, valMapp), 'utf8').split('\n')) {
+  for (const f of fs.readdirSync(valMapp).filter((f) => f.endsWith('.txt'))) valfiler.push({ namn: f, text: fs.readFileSync(new URL(f, valMapp), 'utf8') });
+}
+// Val skickade med knappen "Skicka val" ligger på servern (rostprov/val.php). Går den inte att nå avbryts allt,
+// så att inga skickade val glöms bort (de godkända skulle annars tas bort).
+{
+  const r = await fetch(SIDA + 'val.php?t=' + Date.now(), { headers: { 'Cache-Control': 'no-cache' } }).catch((e) => ({ ok: false, status: e.message }));
+  if (r.status === 404) console.log('Inga val på servern än (val.php saknas).');
+  else if (!r.ok) { console.error(`Kunde inte hämta valen från servern (${r.status})`); process.exit(1); }
+  else for (const v of await r.json()) valfiler.push({ namn: v.namn, text: v.text });
+}
+if (valfiler.length) {
+  for (const { text } of valfiler.sort((a, b) => a.namn.localeCompare(b.namn))) {
+    for (const rad of text.split('\n')) {
       const m = /^(godkända|gör om|ta bort):(.*)$/i.exec(rad.trim());
       if (!m) continue;
       const typ = m[1].toLowerCase();
@@ -346,8 +358,9 @@ function volymFilter(fil) {
   return `loudnorm=${VOLYM}`;
 }
 
-// Röstpaket till appen: de godkända klippen som Opus 32 kbit/s (WebM, spelas av Android 5+)
-// i en zip med manifest.json. Appen laddar ner rostpaket.zip när rostpaket.json säger ny version.
+// Röstpaket till appen: de godkända klippen som Opus 32 kbit/s (WebM, spelas av Android 5+) i en zip med manifest.json.
+// Appen laddar ner rostpaket.zip när rostpaket.json säger ny version. Varje klipp får 0,3 s tystnad först –
+// Bluetooth/bilstereon vaknar när ljudet börjar och skulle annars hugga första stavelsen.
 if (!process.env.LOKALT) {
   const PAKET = path.join(UT, 'paket');
   fs.mkdirSync(PAKET, { recursive: true });
@@ -365,7 +378,7 @@ if (!process.env.LOKALT) {
       tmp = true;
     }
     const fil = `${k.nr}.webm`;
-    const r = spawnSync('ffmpeg', ['-v', 'error', '-y', '-i', kalla, '-af', volymFilter(kalla), '-ar', '48000', '-ac', '1',
+    const r = spawnSync('ffmpeg', ['-v', 'error', '-y', '-i', kalla, '-af', volymFilter(kalla) + ',adelay=300:all=1', '-ar', '48000', '-ac', '1',
       '-c:a', 'libopus', '-b:a', '32k', '-application', 'voip', '-f', 'webm', path.join(PAKET, fil)]);
     if (tmp) fs.rmSync(kalla);
     if (r.status !== 0) { console.log('Röstpaket: ffmpeg misslyckades', k.nr, String(r.stderr).slice(0, 200)); continue; }
