@@ -68,7 +68,13 @@ jobs:
             gh release create app --title "Appen" --notes "Senaste bygget av appen." \
               --target "$GITHUB_SHA" --latest=false
           fi
-          gh release upload app "$RUNNER_TEMP/$APK"
+          # GitHub svarar ibland med serverfel: försök tre gånger. --clobber om ett halvt försök hann lägga upp filen
+          # (webben länkar inte till den förrän nästa steg, så det är ofarligt).
+          for i in 1 2 3; do
+            gh release upload app "$RUNNER_TEMP/$APK" --clobber && exit 0
+            echo "Försök $i misslyckades, väntar…"; sleep $((i * 20))
+          done
+          exit 1
 
       # Lägger app-version.json på webbsidan så att knappen kan visa version och länka rätt
       # utan att fråga GitHubs API (som har en gräns per besökare).
