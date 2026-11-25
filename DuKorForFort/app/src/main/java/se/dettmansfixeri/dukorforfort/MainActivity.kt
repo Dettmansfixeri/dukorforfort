@@ -382,8 +382,11 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                                 enabled = s.margin > SpeedTracker.MIN_MARGIN) { Text("−1", fontSize = 20.sp) }
                             Text(if (s.margin > 0) "+${s.margin}" else "${s.margin}", fontSize = 32.sp, fontWeight = FontWeight.Black,
                                 textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
-                            OutlinedButton(onClick = { s = s.copy(margin = (s.margin + 1).coerceAtMost(SpeedTracker.MAX_MARGIN)) },
-                                enabled = s.margin < SpeedTracker.MAX_MARGIN) { Text("+1", fontSize = 20.sp) }
+                            OutlinedButton(onClick = { s = s.copy(margin = (s.margin + 1).coerceAtMost(s.vehicle.maxMargin)) },
+                                enabled = s.margin < s.vehicle.maxMargin) { Text("+1", fontSize = 20.sp) }
+                        }
+                        if (s.vehicle.maxMargin < SpeedTracker.MAX_MARGIN) {
+                            Text("${s.vehicle.label}: högst +${s.vehicle.maxMargin} km/h", fontSize = 13.sp, color = Dim)
                         }
                         SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
                         SwitchRow("Förvarna när jag gasar på", "Varnar redan när du är på väg över gränsen, innan du är där", s.gasWarn) {
@@ -422,7 +425,7 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
 
                     SettingsPage.VEHICLE -> {
                         Text("Vad kör du?", fontWeight = FontWeight.Bold)
-                        Vehicle.entries.forEach { v -> RadioRow(v.label, s.vehicle == v) { s = s.copy(vehicle = v) } }
+                        Vehicle.entries.forEach { v -> RadioRow(v.label, s.vehicle == v) { s = s.copy(vehicle = v, margin = s.margin.coerceAtMost(v.maxMargin)) } }
                         SwitchRow("Släp/efterfordon", "Max ${Vehicle.TRAILER_MAX} km/h", s.trailer) { s = s.copy(trailer = it) }
                     }
 

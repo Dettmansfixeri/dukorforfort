@@ -69,6 +69,9 @@ class SpeedDataTest {
         assertEquals(45, Vehicle.MOPED.cap(70, true))
         assertEquals(45, Vehicle.MOPEDBIL.cap(70, false))
         assertEquals(25, Vehicle.MOPED_II.cap(70, true))
+        assertEquals(2, Vehicle.MOPED.maxMargin)
+        assertEquals(2, Vehicle.A_TRAKTOR.maxMargin)
+        assertEquals(SpeedTracker.MAX_MARGIN, Vehicle.PERSONBIL.maxMargin)
         assertTrue(160 in Vehicle.TUNG_LASTBIL.codes(true))
     }
 

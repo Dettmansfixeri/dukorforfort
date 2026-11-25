@@ -15,6 +15,8 @@ enum class Vehicle(
     val heavy: Boolean = false,
     /** Generell högsta hastighet enligt trafikförordningen 4 kap. 20 §, utan släp. */
     private val cap: Int? = null,
+    /** Högsta plusmarginal man kan ställa in. Mopeder och A-traktor: bara +2. */
+    val maxMargin: Int = SpeedTracker.MAX_MARGIN,
 ) {
     PERSONBIL("Personbil", setOf(210, 10, 170, 40)),
     HUSBIL("Husbil över 3,5 ton", setOf(49, 10, 170, 40), heavy = true),
@@ -23,11 +25,11 @@ enum class Vehicle(
     TUNG_LASTBIL("Tung lastbil", setOf(280, 90, 10, 170, 40), heavy = true),
     BUSS_BALTE("Buss med bälten", setOf(20, 10, 170, 40), heavy = true, cap = 100),
     BUSS("Buss utan bälten", setOf(20, 10, 170, 40), heavy = true, cap = 90),
-    MOPED("Moped klass I", setOf(130, 120, 170, 40), cap = 45),
+    MOPED("Moped klass I", setOf(130, 120, 170, 40), cap = 45, maxMargin = 2),
     /** Mopedbil är en moped klass I med fyra hjul: samma regler och max 45. */
-    MOPEDBIL("Mopedbil", setOf(130, 120, 170, 40), cap = 45),
-    MOPED_II("Moped klass II", setOf(140, 120, 170, 40), cap = 25),
-    A_TRAKTOR("A-traktor/EPA", setOf(270, 170, 40), cap = 30);
+    MOPEDBIL("Mopedbil", setOf(130, 120, 170, 40), cap = 45, maxMargin = 2),
+    MOPED_II("Moped klass II", setOf(140, 120, 170, 40), cap = 25, maxMargin = 2),
+    A_TRAKTOR("A-traktor/EPA", setOf(270, 170, 40), cap = 30, maxMargin = 2);
 
     /**
      * Fordonets egen högsta hastighet på en väg skyltad [signed] km/h.

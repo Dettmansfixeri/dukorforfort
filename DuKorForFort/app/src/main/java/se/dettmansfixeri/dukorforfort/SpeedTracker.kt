@@ -219,10 +219,11 @@ object SpeedTracker {
 
     fun loadSettings(ctx: Context) {
         val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val vehicle = Vehicle.fromName(p.getString("fordon", null))
         _settings.value = Settings(
-            vehicle = Vehicle.fromName(p.getString("fordon", null)),
+            vehicle = vehicle,
             trailer = p.getBoolean("slap", false),
-            margin = p.getInt("marginal", 0).coerceIn(MIN_MARGIN, MAX_MARGIN),
+            margin = p.getInt("marginal", 0).coerceIn(MIN_MARGIN, vehicle.maxMargin),
             beep = p.getBoolean("pip", true),
             vibrate = p.getBoolean("vibrera", true),
             heckle = HeckleMode.fromName(p.getString("forolampning", null)),
@@ -239,7 +240,8 @@ object SpeedTracker {
         brake.load(p)
     }
 
-    fun setSettings(ctx: Context, s: Settings) {
+    fun setSettings(ctx: Context, new: Settings) {
+        val s = new.copy(margin = new.margin.coerceAtMost(new.vehicle.maxMargin))
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString("fordon", s.vehicle.name).putBoolean("slap", s.trailer)
             .putInt("marginal", s.margin).putBoolean("pip", s.beep).putBoolean("vibrera", s.vibrate).putString("forolampning", s.heckle.name)
