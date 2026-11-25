@@ -158,6 +158,49 @@ object EventLog {
 
     fun delete(f: File) { f.delete(); refresh() }
 
+    // ---------- Skicka till servern ----------
+    private const val UPLOAD_URL = "https://dukorforfort.dettmansfixeri.se/markering.php"
+    private val _upload = MutableStateFlow<String?>(null)
+    /** Hur det gick senast med "Skicka till servern" (null = inte skickat). */
+    val uploadStatus: StateFlow<String?> = _upload
+
+    /**
+     * Skickar alla markeringar och skyltar.csv till den egna servern (mapp utanför webbroten).
+     * Bara när man själv trycker på knappen. [onWrongCode] anropas om servern säger fel kodord.
+     */
+    fun upload(kod: String, onWrongCode: () -> Unit) {
+        if (!started) return
+        val list = _files.value + listOfNotNull(signFile.takeIf { it.exists() })
+        if (list.isEmpty()) { _upload.value = "Inget att skicka"; return }
+        _upload.value = "Skickar…"
+        scope.launch {
+            val sent = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                var ok = 0
+                for (f in list) {
+                    when (post(kod, f.name, f.readText())) {
+                        200 -> ok++
+                        403 -> return@withContext -1
+                    }
+                }
+                ok
+            }
+            if (sent < 0) { _upload.value = "Fel kodord – försök igen"; onWrongCode() }
+            else _upload.value = "Skickat $sent av ${list.size}" + if (sent < list.size) " (ingen kontakt med servern?)" else " ✓"
+        }
+    }
+
+    private fun post(kod: String, namn: String, text: String): Int = try {
+        val c = java.net.URL(UPLOAD_URL).openConnection() as java.net.HttpURLConnection
+        c.requestMethod = "POST"
+        c.doOutput = true
+        c.connectTimeout = 15_000
+        c.readTimeout = 30_000
+        c.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+        val body = org.json.JSONObject().put("kod", kod).put("namn", namn).put("text", text).toString()
+        c.outputStream.use { it.write(body.toByteArray()) }
+        c.responseCode.also { c.disconnect() }
+    } catch (e: Exception) { 0 }
+
     /** Dela-menyn i Android med en eller flera markeringar (positionerna lämnar telefonen först här). */
     fun share(ctx: Context, list: List<File>) {
         if (list.isEmpty()) return

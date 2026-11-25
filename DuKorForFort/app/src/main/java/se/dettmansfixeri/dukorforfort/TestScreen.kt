@@ -114,6 +114,39 @@ fun TestScreen(onClose: () -> Unit) {
                 if (marks.isNotEmpty()) Button(onClick = { EventLog.share(ctx, marks) }) { Text("Dela alla (${marks.size})") }
                 if (signs > 0) Button(onClick = { EventLog.share(ctx, listOf(EventLog.signFile)) }) { Text("Dela skyltar ($signs)") }
             }
+            // Skicka till den egna servern (samma kodord som "Skicka val" på lyssningssidan).
+            val prefs = remember { ctx.getSharedPreferences("server", android.content.Context.MODE_PRIVATE) }
+            var askCode by remember { mutableStateOf(false) }
+            val upload by EventLog.uploadStatus.collectAsStateWithLifecycle()
+            fun send(kod: String) = EventLog.upload(kod) { prefs.edit().remove("kod").apply() }
+            if (marks.isNotEmpty() || signs > 0) OutlinedButton(onClick = {
+                val k = prefs.getString("kod", null)
+                if (k == null) askCode = true else send(k)
+            }, modifier = Modifier.padding(top = 6.dp)) { Text("Skicka till servern", color = Color.White) }
+            upload?.let { Text(it, fontSize = 13.sp, color = dim) }
+            if (askCode) {
+                var input by remember { mutableStateOf("") }
+                AlertDialog(
+                    onDismissRequest = { askCode = false },
+                    title = { Text("Kodord") },
+                    text = {
+                        Column {
+                            Text("Samma kodord som på lyssningssidan. Sparas i telefonen.", fontSize = 13.sp)
+                            OutlinedTextField(value = input, onValueChange = { input = it }, singleLine = true,
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(enabled = input.trim().length >= 4, onClick = {
+                            val k = input.trim()
+                            prefs.edit().putString("kod", k).apply()
+                            askCode = false
+                            send(k)
+                        }) { Text("Skicka") }
+                    },
+                    dismissButton = { TextButton(onClick = { askCode = false }) { Text("Avbryt") } },
+                )
+            }
             for (f in marks.take(20)) Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(f.nameWithoutExtension.replace('_', ' '), color = Color.White, modifier = Modifier.weight(1f))
                 TextButton(onClick = { EventLog.share(ctx, listOf(f)) }) { Text("Dela") }

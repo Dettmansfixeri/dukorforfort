@@ -80,6 +80,8 @@ class Heckler(ctx: Context) {
         private const val PRAISE_AFTER = 5 * 60_000L
         private const val PRAISE_EVERY = 15 * 60_000L
         private const val PRAISE_MIN_KMH = 30
+        /** Avslutningen ("Tack, var det så svårt?" o.d.) sägs bara om man kört minst så här långt för fort. */
+        private const val CLOSING_MIN_M = 500.0
         /** Brutal: rösten släpper dig inte – kortare tystnad och tätare kommentarer. */
         private const val BRUTAL_PACE = 0.6
     }
@@ -134,7 +136,7 @@ class Heckler(ctx: Context) {
         }
         goodTick = now
         if (tooFast && speed != null && limit != null) {
-            if (!this.tooFast) { overSince = System.currentTimeMillis(); count = 0; pendingClosing = null }
+            if (!this.tooFast) { overSince = System.currentTimeMillis(); count = 0; overMeters = 0.0; pendingClosing = null }
             this.speed = speed
             this.limit = limit
             this.tooFast = true
@@ -148,7 +150,8 @@ class Heckler(ctx: Context) {
                 val voice = lastFile?.let { VoicePack.voiceOf(it) }
                 if (forget != null) playClip(forget, interrupt = true, voice = voice)
                 // Annars: avbryt inte det rösten säger nu – säg avslutningen när den pratat klart.
-                else closingClip()?.let { if (player != null) pendingClosing = it else playClip(it) }
+                // Bara efter en längre sträcka för fort, inte när man rättat till sig direkt.
+                else if (overMeters >= CLOSING_MIN_M) closingClip()?.let { if (player != null) pendingClosing = it else playClip(it) }
             }
             count = 0
         }
@@ -202,6 +205,7 @@ class Heckler(ctx: Context) {
     // ---------- Klippen ----------
 
     private var meters = 0.0           // körd sträcka sedan förra repliken
+    private var overMeters = 0.0       // körd sträcka för fort den här gången
     private var lastBand = -1          // senaste bötesbelopp som sagts
     private var lastTick = 0L
     private val recent = ArrayDeque<String>()
@@ -228,6 +232,7 @@ class Heckler(ctx: Context) {
         lastTick = now
         if (!tooFast || mode == HeckleMode.OFF) { meters = 0.0; lastBand = -1; return }
         meters += speed / 3.6 * dt
+        overMeters += speed / 3.6 * dt
         val pace = if (mode == HeckleMode.BRUTAL) BRUTAL_PACE else 1.0
         if (speaking || now - overSince < CLIP_FIRST_DELAY || now - lastDone < CLIP_GAP * pace) return
         val over = (speed - limit).coerceAtLeast(1)
