@@ -93,6 +93,9 @@ data class Settings(
     val testShowGuess: Boolean = false,
     /** Rund skylt ovanpå andra appar när gränsen sänks. */
     val overlay: Boolean = false,
+    /** Pipets och röstens volym i procent av standard. Ändrar inte telefonens volym. */
+    val beepVolume: Int = 100,
+    val voiceVolume: Int = 100,
 ) {
     val aheadOn get() = tests && testAhead
     val learnBrakeOn get() = aheadOn && testLearnBrake
@@ -134,6 +137,9 @@ object SpeedTracker {
     fun warnAt(limit: Int, margin: Int): Int = if (limit == GANGFART) GANGFART_VARNA else limit + margin
     /** Minusmarginal: varnar redan under gränsen (för att prova pip och vibration i lägre fart). */
     const val MIN_MARGIN = -10
+    /** Volymreglagen, procent av standard. */
+    val BEEP_VOLUME = 10..300
+    val VOICE_VOLUME = 25..200
     const val AUTO_ARM_KMH = 20
     private const val MIN = 60_000L
 
@@ -188,6 +194,12 @@ object SpeedTracker {
     private var lastFixAt = 0L
     private var gpsLost = false
     private var gpsJob: Job? = null
+    // GPS-beskeden (sägs alltid, även när rösten är av): "saknas" om ingen position kommit efter
+    // GPS_MISSING_MS, "förlorad" när signalen varit borta GPS_LOST_SAY_MS, "återställd" när den kommer tillbaka.
+    private const val GPS_MISSING_MS = 30_000L
+    private const val GPS_LOST_SAY_MS = 10_000L
+    private var gpsSaid: String? = null      // "saknas" eller "förlorad" har sagts (eller väntar på att sägas)
+    private var gpsPending: String? = null   // besked som ska sägas så fort rösten är ledig
 
     private fun fixIsFresh() = lastFix != null && SystemClock.elapsedRealtime() - lastFixAt <= GPS_TIMEOUT_MS
 
@@ -197,11 +209,18 @@ object SpeedTracker {
     private val listener = LocationListener {
         lastFixAt = SystemClock.elapsedRealtime()
         gpsLost = false
+        if (gpsSaid != null) {
+            // Hann "förlorad" inte sägas behövs inget "återställd" heller.
+            gpsPending = if (gpsPending == gpsSaid) null else ClipLines.GPS_BACK
+            gpsSaid = null
+        }
         onLocation(it)
     }
 
     private fun checkGps() {
-        if (!_state.value.running || simulating || gpsLost) return
+        if (!_state.value.running || simulating) return
+        gpsVoice()
+        if (gpsLost) return
         val since = if (lastFix == null) null else SystemClock.elapsedRealtime() - lastFixAt
         if (since == null || since <= GPS_TIMEOUT_MS) return
         gpsLost = true
@@ -210,6 +229,21 @@ object SpeedTracker {
         warner?.update(0, _settings.value)
         warner?.clicks(null)
         heckler?.reset(hush = false) // ingen "tack"-replik, men det som sägs nu pratas klart
+    }
+
+    /** Bestämmer och säger GPS-beskeden. Försöker igen varje sekund om rösten pratar just då. */
+    private fun gpsVoice() {
+        if (gpsSaid == null) {
+            val now = SystemClock.elapsedRealtime()
+            val say = when {
+                lastFix == null && System.currentTimeMillis() - startedAt >= GPS_MISSING_MS -> ClipLines.GPS_MISSING
+                lastFix != null && gpsLost && now - lastFixAt >= GPS_LOST_SAY_MS -> ClipLines.GPS_LOST
+                else -> null
+            }
+            if (say != null) { gpsSaid = say; gpsPending = say }
+        }
+        val text = gpsPending ?: return
+        if (prefsCtx?.let { prepareVoice(it).announce(text) } == true) gpsPending = null
     }
     private val gnss = object : GnssStatus.Callback() {
         override fun onSatelliteStatusChanged(status: GnssStatus) {
@@ -239,6 +273,8 @@ object SpeedTracker {
             testLearnBrake = p.getBoolean("test_inbromsning", false),
             testShowGuess = p.getBoolean("test_visa", false),
             overlay = p.getBoolean("overlay", false),
+            beepVolume = p.getInt("pip_volym", 100).coerceIn(BEEP_VOLUME),
+            voiceVolume = p.getInt("rost_volym", 100).coerceIn(VOICE_VOLUME),
         )
         brake.load(p)
     }
@@ -252,8 +288,10 @@ object SpeedTracker {
             .putString("ljud", s.sound.name).putBoolean("forvarna_gas", s.gasWarn).putBoolean("test", s.tests)
             .putBoolean("test_lagre_grans", s.testAhead).putBoolean("test_inbromsning", s.testLearnBrake)
             .putBoolean("test_visa", s.testShowGuess).putBoolean("overlay", s.overlay)
+            .putInt("pip_volym", s.beepVolume).putInt("rost_volym", s.voiceVolume)
             .apply()
         _settings.value = s
+        warner?.refreshVolume()
         if (!s.tests) manualKmh = null   // påhittad gräns bara i utvecklarläget
         recompute() // räkna om direkt
     }
@@ -342,6 +380,7 @@ object SpeedTracker {
         }
         lastFix = null
         gpsLost = false
+        gpsSaid = null; gpsPending = null
         gpsJob = scope.launch {
             while (isActive) { delay(1_000); checkGps() }
         }
@@ -384,6 +423,7 @@ object SpeedTracker {
         watchdogJob?.cancel(); watchdogJob = null
         gpsJob?.cancel(); gpsJob = null
         lastFix = null
+        gpsSaid = null; gpsPending = null
         autoStarted = false
         _state.value = UiState(running = false, status = "Stoppad")
     }

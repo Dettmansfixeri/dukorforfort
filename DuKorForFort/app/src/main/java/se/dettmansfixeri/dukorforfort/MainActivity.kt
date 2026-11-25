@@ -281,6 +281,24 @@ private fun SwitchRow(title: String, subtitle: String? = null, checked: Boolean,
     }
 }
 
+/** Volymreglage i procent av standard. [onDone] körs när man släpper (för att provlyssna). */
+@Composable
+private fun VolumeRow(title: String, value: Int, range: IntRange, step: Int, onChange: (Int) -> Unit, onDone: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, Modifier.weight(1f))
+            Text(if (value == 100) "100 % (standard)" else "$value %", fontSize = 14.sp, color = Dim)
+        }
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onChange((Math.round(it / step) * step).coerceIn(range)) },
+            onValueChangeFinished = onDone,
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+            steps = (range.last - range.first) / step - 1,
+        )
+    }
+}
+
 @Composable
 private fun RadioRow(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
@@ -422,6 +440,9 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                                 else "Låter som 2, 5 och sedan 10 km/h över.",
                                 fontSize = 12.sp, color = Dim
                             )
+                            VolumeRow("Pipets volym", s.beepVolume, SpeedTracker.BEEP_VOLUME, 10, { s = s.copy(beepVolume = it) }) {
+                                Preview.sound(ctx, if (s.sound == SoundMode.SILENT) SoundMode.BEEP else s.sound, s.beepVolume, listOf(5))
+                            }
                         }
                         HorizontalDivider(Modifier.padding(vertical = 8.dp))
                         Text("Röst", fontWeight = FontWeight.Bold)
@@ -432,6 +453,12 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                             SpeedTracker.prepareVoice(ctx).preview(s.heckle)
                         }) { IkonBild(Ikon.SPELA); Spacer(Modifier.width(8.dp)); Text("Provlyssna rösten") }
                         if (s.heckle != HeckleMode.OFF && !s.silentOn) VoicePackStatus()
+                        // Gäller alla röstbesked, även GPS-beskeden som hörs när rösten är av.
+                        VolumeRow("Röstens volym", s.voiceVolume, SpeedTracker.VOICE_VOLUME, 25, { s = s.copy(voiceVolume = it) }) {
+                            Preview.stop()
+                            SpeedTracker.prepareVoice(ctx).preview(if (s.silentOn) HeckleMode.OFF else s.heckle, s.voiceVolume)
+                        }
+                        Text("Reglagen ändrar inte telefonens volym, bara pipet och rösten i appen.", fontSize = 12.sp, color = Dim)
                     }
 
                     SettingsPage.VEHICLE -> {

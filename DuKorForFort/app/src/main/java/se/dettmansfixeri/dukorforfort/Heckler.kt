@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.media.audiofx.LoudnessEnhancer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -195,11 +196,11 @@ class Heckler(ctx: Context) {
     fun announce(text: String): Boolean = playClip(text)
 
     /** Provlyssna rösten i inställningarna: en slumpad kommentar för [m] (som om man kör 55 på en 50-väg). Falskt om inget klipp finns. */
-    fun preview(m: HeckleMode): Boolean {
-        if (m == HeckleMode.OFF) return false
+    fun preview(m: HeckleMode, volume: Int? = null): Boolean {
+        if (m == HeckleMode.OFF) return previewClip(volume)
         val l = ClipLines.fromGroups(VoicePack.groups, m == HeckleMode.NICE, closing = false, over = 5, limit = 50, brutal = m == HeckleMode.BRUTAL)
         val text = (l.filter { VoicePack.has(it) } + ClipLines.fineText(5, 50)).random()
-        return playClip(text, interrupt = true)
+        return playClip(text, interrupt = true, volume = volume)
     }
 
     // ---------- Klippen ----------
@@ -220,7 +221,7 @@ class Heckler(ctx: Context) {
     private var heckling = false
 
     /** Spelar ett slumpat bötesklipp direkt (knappen Provlyssna). */
-    fun previewClip() { playClip(ClipLines.fineText(5, 50), interrupt = true) }
+    fun previewClip(volume: Int? = null) = playClip(ClipLines.fineText(5, 50), interrupt = true, volume = volume)
 
     /**
      * Böterna sägs direkt (efter 2 s över) och så fort beloppet går upp. Sedan var 100:e meter,
@@ -285,7 +286,7 @@ class Heckler(ctx: Context) {
     }
 
     /** Spelar ett slumpat klipp för [text]. Falskt om frasen inte finns inspelad. */
-    private fun playClip(text: String, interrupt: Boolean = false, voice: String? = null): Boolean {
+    private fun playClip(text: String, interrupt: Boolean = false, voice: String? = null, volume: Int? = null): Boolean {
         val all = VoicePack.clips(text)
         // Samma röst som förra klippet om det önskas, annars inte exakt samma inspelning två gånger i rad.
         val f: File = (voice?.let { v -> all.filter { VoicePack.voiceOf(it) == v } }.orEmpty()
@@ -305,6 +306,7 @@ class Heckler(ctx: Context) {
             }
             mp.setOnErrorListener { _, w, x -> VoicePack.lastPlay.value = "Uppspelningsfel $w/$x: ${f.name}"; followUp = null; stopClip(); finished(); true }
             mp.prepare()
+            setVolume(mp, volume ?: SpeedTracker.settings.value.voiceVolume)
             speaking = true
             onSpeaking?.invoke(true)   // tysta pipet direkt, innan rösten börjar (settern gör det först en stund senare)
             audio.requestAudioFocus(focus)
@@ -320,8 +322,26 @@ class Heckler(ctx: Context) {
         }
     }
 
+    private var enhancer: LoudnessEnhancer? = null
+
+    /**
+     * Röstens volym i procent av standard. Under 100 sänks klippet; över 100 förstärks det
+     * (med en inbyggd begränsare så att det inte spricker). Telefonens volym ändras inte.
+     */
+    private fun setVolume(mp: MediaPlayer, pct: Int) {
+        val v = pct.coerceIn(SpeedTracker.VOICE_VOLUME)
+        if (v <= 100) { mp.setVolume(v / 100f, v / 100f); return }
+        try {
+            enhancer = LoudnessEnhancer(mp.audioSessionId).apply {
+                setTargetGain((2000 * kotlin.math.log10(v / 100.0)).toInt())   // millibel
+                enabled = true
+            }
+        } catch (e: Exception) { }
+    }
+
     private fun stopClip() {
         heckling = false
+        enhancer?.release(); enhancer = null
         player?.let { try { it.stop() } catch (e: Exception) { }; it.release() }
         player = null
     }

@@ -18,8 +18,9 @@ object Preview {
     /**
      * Spelar [mode] som om man låg 2, 5 och sedan 10 km/h över (så man hör hur det ökar).
      * Tyst läge: spelas musik pausas den i några sekunder, annars hörs pipet som då används.
+     * [volume] = pipets volym i procent (null = sparad inställning). [steps] = vilka km/h över som spelas.
      */
-    fun sound(ctx: Context, mode: SoundMode) {
+    fun sound(ctx: Context, mode: SoundMode, volume: Int? = null, steps: List<Int> = listOf(2, 5, 10)) {
         stop()
         job = scope.launch {
             if (mode == SoundMode.SILENT) {
@@ -32,8 +33,8 @@ object Preview {
                     return@launch
                 }
             }
-            val b = Beeper().also { beeper = it }
-            for (over in listOf(2, 5, 10)) {
+            val b = Beeper().also { beeper = it; it.volume = volume }
+            for (over in steps) {
                 b.play(Beeper.pattern(over, tone = mode == SoundMode.TONE))
                 delay(1800)
             }

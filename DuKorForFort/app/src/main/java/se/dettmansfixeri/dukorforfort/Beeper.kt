@@ -37,6 +37,8 @@ class Beeper {
         private const val RATE = 22050
         /** Volym medan rösten pratar: tyst, annars dränker pipet rösternas första stavelse. */
         private const val DUCK = 0f
+        /** Pipets styrka. Rösterna är utjämnade till −16 LUFS och blev mycket svagare än ett pip för fullt (ca −10 dB). */
+        private const val LEVEL = 0.3f
         private val SIREN = Pattern(0, 0.0, 0, "siren utan paus")
 
         /** Lägsta tonen (1 km/h över). Tonen stiger ett halvtonsteg för varje km/h, upp till [TOP_OVER]. */
@@ -107,6 +109,15 @@ class Beeper {
 
     private var track: AudioTrack? = null
     private var playing: Pattern? = null
+    /** Spelas pipet som larm (ingen röst)? Då full styrka, larmvolymen styr. */
+    private var alarm = false
+    /** Volym i procent av standard (null = inställningen). Provlyssningen i inställningarna sätter den. */
+    var volume: Int? = null
+    private val level get() =
+        ((if (alarm) 1f else LEVEL) * (volume ?: SpeedTracker.settings.value.beepVolume) / 100f).coerceIn(0f, 1f)
+
+    /** Tar in en ändrad volym direkt, även mitt i ett pip. */
+    fun refresh() = duck(ducked)
 
     /** Byter till mönstret (null = tyst). Gör inget om samma mönster redan spelas. */
     fun play(p: Pattern?) {
@@ -115,11 +126,13 @@ class Beeper {
         if (p == null) return
         try {
             val pcm = render(p)
-            // Samma ljudväg som rösten (navigering). Som larm gick pipet både till telefonen och bilens
+            // Med röst: samma ljudväg som rösten (navigering). Som larm gick pipet både till telefonen och bilens
             // Bluetooth, och när rösten sedan startade bytte Android väg och första stavelsen försvann.
+            // Utan röst: som larm igen (larmvolymen, hörs även när mediavolymen är nere).
+            alarm = SpeedTracker.settings.value.heckleOn == HeckleMode.OFF
             val t = AudioTrack.Builder()
                 .setAudioAttributes(
-                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    AudioAttributes.Builder().setUsage(if (alarm) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
                 )
                 .setAudioFormat(
@@ -131,7 +144,7 @@ class Beeper {
                 .build()
             t.write(pcm, 0, pcm.size)
             t.setLoopPoints(0, pcm.size, -1)
-            t.setVolume(if (ducked) DUCK else 1f)
+            t.setVolume(if (ducked) DUCK else level)
             t.play()
             track = t
             playing = p
@@ -143,7 +156,7 @@ class Beeper {
     /** Sänker volymen (t.ex. medan rösten pratar). */
     fun duck(on: Boolean) {
         ducked = on
-        try { track?.setVolume(if (on) DUCK else 1f) } catch (e: Exception) { }
+        try { track?.setVolume(if (on) DUCK else level) } catch (e: Exception) { }
     }
     private var ducked = false
 

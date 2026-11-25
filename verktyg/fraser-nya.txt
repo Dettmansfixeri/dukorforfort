@@ -26,7 +26,7 @@
 8 | Grannarna tittar. Och de skriver upp registreringsnumret.
 8 | Hoppas du hinner bromsa för katten.
 8 | Det här är ingen motorväg, även om du verkar tro det.
-8 | Skolbarn går inte undan i hundra.
+8 | Skolbarn hinner inte undan i hundra.
 8 | Nästa farthinder kommer att göra ont. Bra.
 8 | Du kör som om du ägde gatan. Det gör du inte.
 8 | I den här farten blir en fotgängare en olycka, inte en incident.
@@ -193,6 +193,10 @@
 8 | Över trettio räknas din EPA som en bil, och då behöver du B-körkort.
 ## Torrt väglag
 8 | Och det är vid torrt väglag.
+## GPS @ Kort, lugn och tydlig, som en navigator. Inga pauser.
+8 | GPS-signal saknas.
+8 | GPS-signal förlorad.
+8 | GPS-signal återställd.
 ## Krockfart
 1 | Behöver du tvärnita nu så krockar du i 8 kilometer i timmen, där du istället hade hunnit stanna om du hållit hastigheten.
 1 | Behöver du tvärnita nu så krockar du i 10 kilometer i timmen, där du istället hade hunnit stanna om du hållit hastigheten.

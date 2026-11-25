@@ -201,6 +201,11 @@ object ClipLines {
         "Behöver du tvärnita nu så krockar du i $kmh kilometer i timmen, där du istället hade hunnit stanna om du hållit hastigheten."
     fun isImpact(text: String) = text.startsWith("Behöver du tvärnita")
 
+    /** GPS-beskeden. Sägs alltid, oavsett ljud- och röstinställning (gruppen "GPS" i fraslistan). */
+    const val GPS_MISSING = "GPS-signal saknas."
+    const val GPS_LOST = "GPS-signal förlorad."
+    const val GPS_BACK = "GPS-signal återställd."
+
     /** Eget klipp som spelas direkt efter krockfarten (uträkningen gäller torr asfalt och bra däck). */
     const val DRY = "Och det är vid torrt väglag."
 
@@ -272,7 +277,7 @@ object ClipLines {
                 val gl = g.lowercase()
                 if (gl.startsWith("snäll") != nice) continue
                 if (gl.startsWith("brutal") && !brutal) continue
-                if (gl == "böter" || gl.endsWith("-väg") || gl.startsWith("förvarning") || gl.endsWith("epa") || gl.startsWith("torrt") || gl == "krockfart" || gl.endsWith("beröm") || gl.endsWith("glöm det")) continue
+                if (gl == "böter" || gl.endsWith("-väg") || gl.startsWith("förvarning") || gl.startsWith("gps") || gl.endsWith("epa") || gl.startsWith("torrt") || gl == "krockfart" || gl.endsWith("beröm") || gl.endsWith("glöm det")) continue
                 if (("tack" in gl) != closing) continue
                 if ("körkort" in gl && !license) continue
                 if ("tätort" in gl && limit > 50) continue
