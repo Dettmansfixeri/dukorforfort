@@ -411,7 +411,7 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                             Text("${s.vehicle.label}: högst +${s.vehicle.maxMargin} km/h", fontSize = 13.sp, color = Dim)
                         }
                         SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
-                        SwitchRow("Rund skylt ovanpå andra appar", "Visas några sekunder när gränsen sänks, t.ex. när kartan är framme", s.overlay) {
+                        SwitchRow("Rund skylt ovanpå andra appar", "När kartan e.d. är framme: blinkar inför lägre gräns, visar din fart när du kör för fort", s.overlay) {
                             s = s.copy(overlay = it)
                             if (it && !SignOverlay.allowed(ctx)) SignOverlay.openSettings(ctx)
                         }
@@ -428,7 +428,7 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                         if (s.beep) {
                             SoundMode.entries.forEach { m -> RadioRow(m.label, s.sound == m) { s = s.copy(sound = m) } }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { Preview.sound(ctx, s.sound) }) {
+                                OutlinedButton(onClick = { Preview.sound(ctx, s.sound, s.beepVolume, s.beepOutput) }) {
                                     IkonBild(Ikon.SPELA); Spacer(Modifier.width(8.dp)); Text("Provlyssna ljudet")
                                 }
                                 OutlinedButton(onClick = { Preview.stop() }) {
@@ -441,7 +441,14 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                                 fontSize = 12.sp, color = Dim
                             )
                             VolumeRow("Pipets volym", s.beepVolume, SpeedTracker.BEEP_VOLUME, 10, { s = s.copy(beepVolume = it) }) {
-                                Preview.sound(ctx, if (s.sound == SoundMode.SILENT) SoundMode.BEEP else s.sound, s.beepVolume, listOf(5))
+                                Preview.sound(ctx, if (s.sound == SoundMode.SILENT) SoundMode.BEEP else s.sound, s.beepVolume, s.beepOutput, listOf(5))
+                            }
+                            Text("Pipet går ut som", Modifier.padding(top = 8.dp))
+                            BeepOutput.entries.forEach { o ->
+                                RadioRow("${o.label} – ${o.info}", s.beepOutput == o) {
+                                    s = s.copy(beepOutput = o)
+                                    Preview.sound(ctx, if (s.sound == SoundMode.SILENT) SoundMode.BEEP else s.sound, s.beepVolume, o, listOf(5))
+                                }
                             }
                         }
                         HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -670,9 +677,9 @@ fun AheadSign(kmh: Int, blinkMs: Int?, since: Long, size: androidx.compose.ui.un
 }
 
 /** Så länge skylten lyser per tick (två tick med 130 ms emellan). */
-private const val BLINK_ON_MS = 350L
+internal const val BLINK_ON_MS = 350L
 /** Takten när rösten sa till (inget tickande). */
-private const val CALM_BLINK_MS = 1200
+internal const val CALM_BLINK_MS = 1200
 /** Kommande skylten är så här mycket större än den nuvarande. */
 private const val AHEAD_SCALE = 1.75f
 

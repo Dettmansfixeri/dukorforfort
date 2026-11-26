@@ -62,6 +62,15 @@ enum class SoundMode(val label: String) {
     }
 }
 
+enum class BeepOutput(val label: String, val info: String) {
+    NORMAL("Vanligt ljud", "Samma väg som rösten och musiken, följer mediavolymen"),
+    ALARM("Larmljud", "Följer larmvolymen och hörs även när mediavolymen är nere");
+
+    companion object {
+        fun fromName(n: String?) = entries.firstOrNull { it.name == n }
+    }
+}
+
 enum class AutoMode(val label: String) {
     OFF("Av"),
     DRIVING("När jag åker"),
@@ -96,6 +105,8 @@ data class Settings(
     /** Pipets och röstens volym i procent av standard. Ändrar inte telefonens volym. */
     val beepVolume: Int = 100,
     val voiceVolume: Int = 100,
+    /** Var pipet går ut: vanliga ljudet (som rösten) eller som larm. */
+    val beepOutput: BeepOutput = BeepOutput.NORMAL,
 ) {
     val aheadOn get() = tests && testAhead
     val learnBrakeOn get() = aheadOn && testLearnBrake
@@ -275,6 +286,9 @@ object SpeedTracker {
             overlay = p.getBoolean("overlay", false),
             beepVolume = p.getInt("pip_volym", 100).coerceIn(BEEP_VOLUME),
             voiceVolume = p.getInt("rost_volym", 100).coerceIn(VOICE_VOLUME),
+            // Inte valt än: som förut, larm om rösten är av, annars vanligt ljud.
+            beepOutput = BeepOutput.fromName(p.getString("pip_utgang", null))
+                ?: if (HeckleMode.fromName(p.getString("forolampning", null)) == HeckleMode.OFF) BeepOutput.ALARM else BeepOutput.NORMAL,
         )
         brake.load(p)
     }
@@ -288,7 +302,7 @@ object SpeedTracker {
             .putString("ljud", s.sound.name).putBoolean("forvarna_gas", s.gasWarn).putBoolean("test", s.tests)
             .putBoolean("test_lagre_grans", s.testAhead).putBoolean("test_inbromsning", s.testLearnBrake)
             .putBoolean("test_visa", s.testShowGuess).putBoolean("overlay", s.overlay)
-            .putInt("pip_volym", s.beepVolume).putInt("rost_volym", s.voiceVolume)
+            .putInt("pip_volym", s.beepVolume).putInt("rost_volym", s.voiceVolume).putString("pip_utgang", s.beepOutput.name)
             .apply()
         _settings.value = s
         warner?.refreshVolume()

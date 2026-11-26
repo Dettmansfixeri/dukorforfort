@@ -77,6 +77,19 @@ class SpeedService : Service() {
                     ) SignOverlay.show(this@SpeedService, limit)
                 }
             }
+            // Ovanpå andra appar: för fort = skylten med farten under. Annars förvarningen:
+            // den kommande lägre skylten blinkar i takt med tickandet.
+            scope.launch {
+                SpeedTracker.state.collect { s ->
+                    val allowed = SpeedTracker.settings.value.overlay && !SignOverlay.appVisible && !s.manual
+                    val over = allowed && s.tooFast && s.limitKmh != null && s.speedKmh != null
+                    SignOverlay.over(this@SpeedService, if (over) s.limitKmh else null, s.speedKmh)
+                    if (!SignOverlay.showingOver) {
+                        val ahead = allowed && s.aheadKmh != null
+                        SignOverlay.ahead(this@SpeedService, if (ahead) s.aheadKmh else null, s.aheadBlinkMs, s.aheadSince)
+                    }
+                }
+            }
         }
         return START_NOT_STICKY
     }

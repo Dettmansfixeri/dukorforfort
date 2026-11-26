@@ -113,6 +113,8 @@ class Beeper {
     private var alarm = false
     /** Volym i procent av standard (null = inställningen). Provlyssningen i inställningarna sätter den. */
     var volume: Int? = null
+    /** Ljudvägen (null = inställningen). Provlyssningen i inställningarna sätter den. */
+    var output: BeepOutput? = null
     private val level get() =
         ((if (alarm) 1f else LEVEL) * (volume ?: SpeedTracker.settings.value.beepVolume) / 100f).coerceIn(0f, 1f)
 
@@ -126,10 +128,10 @@ class Beeper {
         if (p == null) return
         try {
             val pcm = render(p)
-            // Med röst: samma ljudväg som rösten (navigering). Som larm gick pipet både till telefonen och bilens
-            // Bluetooth, och när rösten sedan startade bytte Android väg och första stavelsen försvann.
-            // Utan röst: som larm igen (larmvolymen, hörs även när mediavolymen är nere).
-            alarm = SpeedTracker.settings.value.heckleOn == HeckleMode.OFF
+            // Vanligt ljud: samma ljudväg som rösten (navigering). Som larm går pipet både till telefonen och bilens
+            // Bluetooth, och när rösten startar kan Android byta väg så att första stavelsen försvinner.
+            // Larm: larmvolymen, hörs även när mediavolymen är nere.
+            alarm = (output ?: SpeedTracker.settings.value.beepOutput) == BeepOutput.ALARM
             val t = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder().setUsage(if (alarm) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
