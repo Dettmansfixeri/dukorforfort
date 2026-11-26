@@ -411,7 +411,7 @@ fun SettingsDialog(current: Settings, onDone: (Settings) -> Unit, onDismiss: () 
                             Text("${s.vehicle.label}: högst +${s.vehicle.maxMargin} km/h", fontSize = 13.sp, color = Dim)
                         }
                         SwitchRow("Vibrera", "Fler pulser ju mer över du är", s.vibrate) { s = s.copy(vibrate = it) }
-                        SwitchRow("Rund skylt ovanpå andra appar", "När kartan e.d. är framme: blinkar inför lägre gräns, visar din fart när du kör för fort", s.overlay) {
+                        SwitchRow("Rund skylt ovanpå andra appar", "När en annan app är framme: blinkar inför lägre gräns och visas när du kör för fort, med din fart under", s.overlay) {
                             s = s.copy(overlay = it)
                             if (it && !SignOverlay.allowed(ctx)) SignOverlay.openSettings(ctx)
                         }

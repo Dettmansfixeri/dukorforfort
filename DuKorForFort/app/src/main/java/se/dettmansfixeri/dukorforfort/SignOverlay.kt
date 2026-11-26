@@ -20,7 +20,8 @@ import android.widget.TextView
 
 /**
  * Rund hastighetsskylt ovanpå andra appar (t.ex. kartan).
- *  - För fort: skylten med gränsen och din fart i rött under, så länge du ligger över.
+ *  Under skylten står alltid din fart: vit när du håller gränsen, röd när du kör för fort.
+ *  - För fort: skylten med gränsen, så länge du ligger över.
  *  - Förvarningen: när en lägre gräns närmar sig blinkar den kommande skylten i takt med tickandet,
  *    så länge förvarningen pågår.
  *  - När gränsen sänkts: den nya skylten syns stilla några sekunder och försvinner sedan.
@@ -31,11 +32,14 @@ object SignOverlay {
     private const val SIZE_DP = 150
     private const val TOP_DP = 90
     private const val RED = 0xFFE53935.toInt()
+    private const val WHITE = 0xFFFFFFFF.toInt()
 
     /** Sätts av MainActivity: syns appen själv behövs ingen skylt ovanpå. */
     @Volatile var appVisible = false
 
     private var view: View? = null
+    /** Själva skylten (blinkar vid förvarningen; farten under blinkar inte). */
+    private var signView: View? = null
     private val handler = Handler(Looper.getMainLooper())
     /** Förvarningen som blinkar nu: gräns, takt och starttid (null = ingen). */
     private var ahead: Triple<Int, Int?, Long>? = null
@@ -57,20 +61,19 @@ object SignOverlay {
         val app = ctx.applicationContext
         val wm = app.getSystemService(WindowManager::class.java) ?: return
         stopAll(wm)
-        if (!attach(app, wm, limit, false)) return
+        if (!attach(app, wm, limit)) return
         handler.postDelayed({ stopAll(wm) }, SHOW_MS)
     }
 
-    /** För fort: skylten [limit] med farten [speed] i rött under. null = inte för fort (tar bort den). */
+    /** För fort: skylten [limit] (null = inte för fort, tar bort den). Farten sätts med [speed]. */
     fun over(ctx: Context, limit: Int?, speed: Int?) {
         val app = ctx.applicationContext
         val wm = app.getSystemService(WindowManager::class.java) ?: return
         if (limit == null || speed == null) { if (overLimit != null) stopAll(wm); return }
-        if (overLimit == limit && view != null) { speedText?.text = "$speed"; return }
+        if (overLimit == limit && view != null) return
         stopAll(wm)
-        if (!attach(app, wm, limit, true)) return
+        if (!attach(app, wm, limit)) return
         overLimit = limit
-        speedText?.text = "$speed"
     }
 
     /** Visas skylten med farten just nu? Då får förvarningen vänta. */
@@ -87,13 +90,13 @@ object SignOverlay {
         val want = Triple(limit, blinkMs, since)
         if (want == ahead) return
         stopAll(wm)
-        if (!attach(app, wm, limit, false)) return
+        if (!attach(app, wm, limit)) return
         ahead = want
         val period = (blinkMs ?: CALM_BLINK_MS).toLong()
         val onMs = if (blinkMs == null) period / 2 else BLINK_ON_MS
         val tick = object : Runnable {
             override fun run() {
-                val v = view ?: return
+                val v = signView ?: return
                 val phase = (SystemClock.elapsedRealtime() - since).mod(period)
                 val on = phase < onMs
                 v.visibility = if (on) View.VISIBLE else View.INVISIBLE
@@ -106,19 +109,26 @@ object SignOverlay {
 
     fun hide(ctx: Context) { ctx.applicationContext.getSystemService(WindowManager::class.java)?.let { stopAll(it) } }
 
-    /** Lägger skylten på skärmen, med ett fält för farten under om [withSpeed]. */
-    private fun attach(app: Context, wm: WindowManager, limit: Int, withSpeed: Boolean): Boolean {
+    /** Din fart under skylten: vit inom gränsen, röd när du kör för fort. Anropas vid varje ny position. */
+    fun speed(kmh: Int?, tooFast: Boolean) {
+        val t = speedText ?: return
+        t.text = kmh?.toString() ?: "–"
+        t.setTextColor(if (tooFast) RED else WHITE)
+    }
+
+    /** Lägger skylten på skärmen, med din fart under. */
+    private fun attach(app: Context, wm: WindowManager, limit: Int): Boolean {
         if (!allowed(app)) return false
         val d = app.resources.displayMetrics.density
         val px = (SIZE_DP * d).toInt()
         val sign = ImageView(app).apply { setImageBitmap(SignPainter.signBitmap(app, limit, px)) }
-        val root: View = if (!withSpeed) sign else LinearLayout(app).apply {
+        val root = LinearLayout(app).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             addView(sign, LinearLayout.LayoutParams(px, px))
             val t = TextView(app).apply {
                 setTextColor(RED)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 44f)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 72f)   // stort, ska gå att läsa med en snabb blick
                 typeface = Typeface.DEFAULT_BOLD
                 gravity = Gravity.CENTER
                 val padH = (14 * d).toInt()
@@ -130,8 +140,8 @@ object SignOverlay {
             speedText = t
         }
         val lp = WindowManager.LayoutParams(
-            if (withSpeed) WindowManager.LayoutParams.WRAP_CONTENT else px,
-            if (withSpeed) WindowManager.LayoutParams.WRAP_CONTENT else px,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
@@ -142,7 +152,8 @@ object SignOverlay {
             // Android 12+ släpper bara igenom tryck genom rutor som är högst 80 % täckande.
             alpha = 0.8f
         }
-        return try { wm.addView(root, lp); view = root; true } catch (e: Exception) { speedText = null; false }
+        SpeedTracker.state.value.let { speed(it.speedKmh, it.tooFast) }
+        return try { wm.addView(root, lp); view = root; signView = sign; true } catch (e: Exception) { speedText = null; false }
     }
 
     private fun stopAll(wm: WindowManager) {
@@ -152,5 +163,6 @@ object SignOverlay {
         speedText = null
         view?.let { try { wm.removeView(it) } catch (e: Exception) {} }
         view = null
+        signView = null
     }
 }
