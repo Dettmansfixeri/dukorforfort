@@ -87,21 +87,30 @@ jobs:
           # Vad som är nytt (visas i appens uppdateringsruta): punkterna ("- …") i commit-meddelandena
           # som ändrat appen, annars första raden. De 15 senaste versionerna sparas, så att den som
           # hoppat över några versioner ser allt nytt sedan sin egen.
-          NEW=$(jq -c --arg v "$VERSION" --arg head "$(git log -1 --format=%s)" '
-            [ .commits[]?
-              | select([(.added + .modified + .removed)[] | startswith("DuKorForFort/")] | any)
-              | .message | split("\n") | map(select(startswith("Co-Authored-By") | not)) as $l
-              | ($l | map(select(startswith("- ")) | .[2:])) as $b
-              | if ($b | length) > 0 then $b[] else $l[0] end ]
+          # Går något fel med listan publiceras appen ändå (utan lista); felet hamnar i fältet "fel".
+          HEAD_MSG=$(git log -1 --format=%s 2>/dev/null || echo "Ny version")
+          ERR=""
+          NEW=$(jq -c --arg v "$VERSION" --arg head "$HEAD_MSG" '
+            [ (.commits // [])[]
+              | select([((.added // []) + (.modified // []) + (.removed // []))[] | strings | startswith("DuKorForFort/")] | any)
+              | [(.message // "") | split("\n")[] | select(startswith("Co-Authored-By") | not)] as $l
+              | [$l[] | select(startswith("- ")) | .[2:]] as $b
+              | if ($b | length) > 0 then $b[] else ($l[0] // empty) end ]
             | if length == 0 then [$head] else . end
-            | {v: $v, c: .}' "$GITHUB_EVENT_PATH")
+            | {v: $v, c: .}' "$GITHUB_EVENT_PATH" 2>"$RUNNER_TEMP/jq1.txt") || ERR="lista: $(head -c 300 "$RUNNER_TEMP/jq1.txt")"
+          [ -n "$NEW" ] || NEW=$(jq -nc --arg v "$VERSION" --arg h "$HEAD_MSG" '{v: $v, c: [$h]}')
           OLD=$(curl -sf --max-time 20 https://dukorforfort.dettmansfixeri.se/app-version.json | jq -c '.changes // []' 2>/dev/null || true)
           [ -n "$OLD" ] || OLD='[]'
-          jq -n --arg version "$VERSION" --arg url "https://github.com/${GITHUB_REPOSITORY}/releases/download/app/$APK" \
-            --argjson size "$SIZE" --arg built "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --argjson new "$NEW" --argjson old "$OLD" \
-            '{version: $version, url: $url, size: $size, built: $built,
-              changes: ([$new] + ($old | map(select(.v != $version))))[:15]}' > "$RUNNER_TEMP/app-version.json"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/app/$APK"
+          BUILT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          if ! jq -n --arg version "$VERSION" --arg url "$URL" --argjson size "$SIZE" --arg built "$BUILT" \
+              --argjson new "$NEW" --argjson old "$OLD" --arg fel "$ERR" \
+              '{version: $version, url: $url, size: $size, built: $built,
+                changes: (([$new] + ($old | map(select(.v != $version)))) | .[:15])}
+               + (if $fel == "" then {} else {fel: $fel} end)' > "$RUNNER_TEMP/app-version.json" 2>"$RUNNER_TEMP/jq2.txt"; then
+            echo "Kunde inte skriva listan: $(cat "$RUNNER_TEMP/jq2.txt")"
+            echo "{\"version\":\"$VERSION\",\"url\":\"$URL\",\"size\":$SIZE,\"built\":\"$BUILT\"}" > "$RUNNER_TEMP/app-version.json"
+          fi
           cat "$RUNNER_TEMP/app-version.json"
           sudo apt-get update -qq && sudo apt-get install -y -qq lftp
           lftp -c "
