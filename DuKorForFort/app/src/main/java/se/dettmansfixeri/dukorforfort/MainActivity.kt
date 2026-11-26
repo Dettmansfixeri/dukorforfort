@@ -152,6 +152,19 @@ fun DataGate() {
 }
 
 /** Ny version av appen: ladda ner och installera. */
+/** Vad som är nytt, per version (nyast först). Rullar om listan är lång. */
+@Composable
+private fun ChangeList(changes: List<Pair<String, List<String>>>) {
+    Spacer(Modifier.height(12.dp))
+    Text("Nytt:", fontWeight = FontWeight.Bold)
+    Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+        changes.forEach { (v, lines) ->
+            if (changes.size > 1) Text(v, fontSize = 13.sp, color = Dim, modifier = Modifier.padding(top = 8.dp))
+            lines.forEach { Text("• $it", fontSize = 15.sp, modifier = Modifier.padding(top = 4.dp)) }
+        }
+    }
+}
+
 @Composable
 fun AppUpdateDialog(s: AppUpdater.State) {
     val ctx = LocalContext.current
@@ -163,11 +176,14 @@ fun AppUpdateDialog(s: AppUpdater.State) {
         text = {
             Column {
                 when (s) {
-                    is AppUpdater.State.Available -> Text(
-                        "Version ${s.remote.version} finns (du har ${BuildConfig.VERSION_NAME}). " +
-                            "Ladda ner och installera nu?" +
-                            (if (s.remote.size > 0) " (${(s.remote.size + 524288) / 1048576} MB)" else "")
-                    )
+                    is AppUpdater.State.Available -> {
+                        Text(
+                            "Version ${s.remote.version} finns (du har ${BuildConfig.VERSION_NAME}). " +
+                                "Ladda ner och installera nu?" +
+                                (if (s.remote.size > 0) " (${(s.remote.size + 524288) / 1048576} MB)" else "")
+                        )
+                        if (s.remote.changes.isNotEmpty()) ChangeList(s.remote.changes)
+                    }
                     is AppUpdater.State.Downloading -> {
                         Text("Laddar ner version ${s.remote.version}… ${(s.progress * 100).toInt()} %")
                         Spacer(Modifier.height(12.dp))

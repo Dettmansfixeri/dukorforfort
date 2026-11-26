@@ -25,7 +25,20 @@ object AppUpdater {
     /** Bara APK:er härifrån laddas ner, vad json-filen än säger. */
     private const val ALLOWED_PREFIX = "https://github.com/Dettmansfixeri/dukorforfort/releases/download/"
 
-    class Remote(val version: String, val url: String, val size: Long)
+    /** [changes] = vad som är nytt, per version (nyast först), bara versioner nyare än den man har. */
+    class Remote(val version: String, val url: String, val size: Long, val changes: List<Pair<String, List<String>>> = emptyList())
+
+    /** Läser "changes" ur app-version.json: [{v: "1.1.35", c: ["…", "…"]}, …], bara versioner nyare än [local]. */
+    fun parseChanges(json: JSONObject, local: String): List<Pair<String, List<String>>> {
+        val arr = json.optJSONArray("changes") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val v = o.optString("v")
+            val c = o.optJSONArray("c") ?: return@mapNotNull null
+            val lines = (0 until c.length()).map { c.optString(it) }.filter { it.isNotBlank() }
+            if (lines.isEmpty() || !isNewer(v, local)) null else v to lines
+        }
+    }
 
     sealed interface State {
         data object None : State
@@ -56,7 +69,8 @@ object AppUpdater {
     suspend fun check() = withContext(Dispatchers.IO) {
         try {
             val json = JSONObject(open(VERSION_URL).use { it.readBytes().toString(Charsets.UTF_8) })
-            val remote = Remote(json.getString("version"), json.getString("url"), json.optLong("size", 0))
+            val remote = Remote(json.getString("version"), json.getString("url"), json.optLong("size", 0),
+                parseChanges(json, BuildConfig.VERSION_NAME))
             if (!remote.url.startsWith(ALLOWED_PREFIX)) return@withContext
             if (isNewer(remote.version, BuildConfig.VERSION_NAME) && remote.version != dismissed &&
                 _state.value is State.None) _state.value = State.Available(remote)
