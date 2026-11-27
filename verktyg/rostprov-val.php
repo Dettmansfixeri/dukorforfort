@@ -1,6 +1,6 @@
 <?php
 // Tar emot val från lyssningssidan (knappen "Skicka val") och lämnar ut dem till Röstprov.
-//   POST {kod, text}  sparar en ny valfil. Första gången bestämmer kodordet (bara ett hash sparas).
+//   POST {kod, text}  sparar en ny valfil. Första gången (när oppen.txt finns) bestäms kodordet (bara ett hash sparas).
 //   GET               alla sparade valfiler som JSON [{namn, text}], äldst först.
 // Filerna ligger utanför webbroten. Glömt kodord: ta bort filen kod.txt i mappen nedan.
 header('Content-Type: application/json; charset=utf-8');
@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $filer = glob("$mapp/*.txt");
     sort($filer);
     foreach ($filer as $f) {
-        if (basename($f) === 'kod.txt') continue;
+        if (basename($f) === 'kod.txt' || basename($f) === 'oppen.txt') continue;
         $ut[] = ['namn' => basename($f), 'text' => file_get_contents($f)];
     }
     svar(200, $ut);
@@ -32,9 +32,13 @@ $text = is_array($in) ? (string)($in['text'] ?? '') : '';
 if (strlen($kod) < 4) svar(400, ['fel' => 'Kodordet måste vara minst 4 tecken']);
 if ($text === '' || strlen($text) > 100000) svar(400, ['fel' => 'Inga val']);
 
+// Ett nytt kodord tas bara emot när filen oppen.txt finns i mappen (läggs dit för hand just när
+// kodordet ska väljas). Den tas bort så fort kodordet är satt, så att ingen annan hinner före.
 if (!file_exists($kodfil)) {
+    if (!file_exists("$mapp/oppen.txt")) svar(423, ['fel' => 'Inget kodord är valt än. Servern är låst.']);
     file_put_contents($kodfil, password_hash($kod, PASSWORD_DEFAULT), LOCK_EX);
     chmod($kodfil, 0600);
+    unlink("$mapp/oppen.txt");
 } elseif (!password_verify($kod, trim(file_get_contents($kodfil)))) {
     sleep(2);
     svar(403, ['fel' => 'Fel kodord']);

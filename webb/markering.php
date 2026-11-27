@@ -25,9 +25,13 @@ if (!preg_match('/^(\d{4}-\d{2}-\d{2}_\d{6}\.txt|skyltar\.csv)$/', $namn)) svar(
 if ($text === '' || strlen($text) > 2000000) svar(400, ['fel' => 'Tom eller för stor fil']);
 
 if (!is_dir($kodmapp)) mkdir($kodmapp, 0700, true);
+// Ett nytt kodord tas bara emot när filen oppen.txt finns i mappen (läggs dit för hand just när
+// kodordet ska väljas). Den tas bort så fort kodordet är satt, så att ingen annan hinner före.
 if (!file_exists($kodfil)) {
+    if (!file_exists("$kodmapp/oppen.txt")) svar(423, ['fel' => 'Inget kodord är valt än. Servern är låst.']);
     file_put_contents($kodfil, password_hash($kod, PASSWORD_DEFAULT), LOCK_EX);
     chmod($kodfil, 0600);
+    unlink("$kodmapp/oppen.txt");
 } elseif (!password_verify($kod, trim(file_get_contents($kodfil)))) {
     sleep(2);
     svar(403, ['fel' => 'Fel kodord']);
