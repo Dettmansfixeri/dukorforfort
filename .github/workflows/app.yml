@@ -123,7 +123,8 @@ jobs:
           "
 
       # Först när webbsidan pekar på den nya filen: byt reservfilen (fast namn) och städa gamla versioner.
-      # De två senaste versionerna sparas, så att en sida som laddats strax innan fortfarande fungerar.
+      # Filen webben nu länkar till tas aldrig bort, plus en till (så att en sida som laddats strax innan
+      # fortfarande fungerar) – även om det här var en omkörning av ett äldre bygge.
       - name: Städa releasen
         # Appen är redan uppe här. Strular GitHub i städningen ska inte hela bygget räknas som misslyckat.
         continue-on-error: true
@@ -135,5 +136,6 @@ jobs:
             --notes "Senaste bygget av appen, version $VERSION (${GITHUB_SHA::7})."
           gh release view app --json assets --jq '.assets[].name' \
             | grep -E '^DuKorForFort-[0-9.]+(-r[0-9]+)?\.apk$' \
-            | sort -V | head -n -2 \
+            | grep -vxF "$APK" \
+            | sort -V | head -n -1 \
             | while read -r old; do gh release delete-asset app "$old" --yes; done

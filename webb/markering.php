@@ -34,6 +34,7 @@ if (!file_exists($kodfil)) {
 }
 
 if (!is_dir($mapp)) mkdir($mapp, 0700, true);
-file_put_contents("$mapp/$namn", $text, LOCK_EX);
+// Svara ok bara om hela filen blev skriven (t.ex. inte vid fullt diskutrymme).
+if (file_put_contents("$mapp/$namn", $text, LOCK_EX) !== strlen($text)) svar(500, ['fel' => 'Kunde inte spara filen']);
 chmod("$mapp/$namn", 0600);
 svar(200, ['ok' => true, 'namn' => $namn]);
