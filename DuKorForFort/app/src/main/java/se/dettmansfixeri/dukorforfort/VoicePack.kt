@@ -55,6 +55,9 @@ object VoicePack {
     fun load(ctx: Context) {
         val d = dir(ctx)
         val m = File(d, "manifest.json")
+        // Stängdes appen mitt i ett byte ligger det förra paketet kvar som reserv: lägg tillbaka det.
+        val old = File(ctx.filesDir, "roster-gammal")
+        if (!m.exists() && File(old, "manifest.json").exists()) { d.deleteRecursively(); old.renameTo(d) }
         if (!m.exists()) { byText = emptyMap(); if (_state.value !is State.Downloading) _state.value = State.None; return }
         try {
             val json = JSONObject(m.readText())
@@ -249,6 +252,64 @@ object ClipLines {
     }
 
 
+
+    // ---------- Högar: hur grov en kommentar är ----------
+    // Hög 1 sägs direkt, hög 2 när man är en bit över eller legat över ett tag, hög 3 först långt över eller länge.
+    // Allt som inte står här (och Skylten-fraserna) är hög 1. Matchas utan versaler och skiljetecken.
+
+    internal val PILE_2 = listOf(
+        "Tror du att skyltarna är förslag?",
+        "Fortsätt så, så får du snart träffa polisen.",
+        "Jag är bara en app, MEN jag skäms ändå å dina vägnar.",
+        "Jag tjatar bara för att jag bryr mig om dig.",
+        "Det här är ingen motorväg, även om du verkar tro det.",
+        "Du kör som om du ägde gatan. Det gör du inte.",
+        "Lugna ner dig, racerföraren.",
+        "Hoppas du hinner bromsa för katten.",
+        "Nästa farthinder kommer att göra ont. Bra.",
+        "Kör du alltid så här genom folks trädgårdar?",
+        "Vet dina föräldrar att du kör så här?... De skäms.... Det vet jag.",
+        "Du är inte sen. Du är bara en idiot.",
+    )
+    internal val PILE_3 = listOf(
+        "Är gaspedalen fastlimmad, eller?",
+        "Grattis. Du är officiellt en fartdåre.",
+        "Det här är en gata, inte Le Mans.",
+        "Skolbarn hinner inte undan i hundra.",
+        "I den här farten blir en fotgängare en olycka, inte en incident.",
+        "Grattis, du är officiellt trafikens största jävla pucko.",
+        "Ditt körkort borde ha legat kvar i kartongen med flingorna, för det var där du hittade det.",
+        "Det är så här folk dör. Meeeen... Kör du.",
+        "Jag hoppas du har bra försäkring. Och en bra advokat.",
+    )
+
+    private fun key(text: String) = text.lowercase().filter { it.isLetterOrDigit() }
+    private val PILES: Map<String, Int> = PILE_2.associate { key(it) to 2 } + PILE_3.associate { key(it) to 3 }
+
+    /** Vilken hög frasen hör till (1–3). */
+    fun pile(text: String): Int = PILES[key(text)] ?: 1
+
+    /** Den grövsta hög som får sägas: hög 2 från 6 km/h över eller 10 s, hög 3 från 16 km/h över eller 30 s. */
+    fun maxPile(over: Int, overMs: Long): Int = when {
+        over >= 16 || overMs >= 30_000L -> 3
+        over >= 6 || overMs >= 10_000L -> 2
+        else -> 1
+    }
+
+    /** Hur ofta frasen ska väljas: den grövsta tillåtna högen 3 gånger så ofta som lägre högar, otillåtna aldrig. */
+    fun pileWeight(text: String, maxPile: Int): Int {
+        val p = pile(text)
+        return when { p > maxPile -> 0; p == maxPile -> 3; else -> 1 }
+    }
+
+    /** Slumpar en text där vikten avgör hur ofta (vikt 3 = tre gånger så ofta som vikt 1). */
+    fun pickWeighted(items: List<Pair<String, Int>>, rnd: kotlin.random.Random = kotlin.random.Random): String? {
+        val total = items.sumOf { it.second.coerceAtLeast(0) }
+        if (total <= 0) return null
+        var r = rnd.nextInt(total)
+        for ((t, w) in items) { if (w <= 0) continue; if (r < w) return t; r -= w }
+        return null
+    }
 
     /** Fraser ur röstpaketets grupper som passar läget (se gruppreglerna i Heckler). */
     /** "Äh, glöm det. Bra." – när man saktar ner mitt i en kommentar. Grupperna "Glöm det", "Snäll glöm det" och "Brutal glöm det". */

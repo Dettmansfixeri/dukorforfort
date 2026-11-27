@@ -271,15 +271,24 @@ class Heckler(ctx: Context) {
         (if (mode == HeckleMode.BRUTAL) brutalPhrases(closing = true).randomOrNull() else null)
             ?: groupPhrases(mode == HeckleMode.NICE, closing = true, over = 1).filterNot { it in ClipLines.brutal(VoicePack.groups, true) }.randomOrNull()
 
-    /** En slumpad kommentar som finns inspelad (inte samma som nyss). Elak nivå får också uträknade fakta. */
+    /**
+     * En slumpad kommentar som finns inspelad (inte samma som nyss). Elak nivå får också uträknade fakta.
+     * Kommentarerna följer hur långt över och hur länge man legat över (högarna i [ClipLines.pile]):
+     * de grövsta som passar väljs oftast. Uträknade fakta väljs lika ofta som dem.
+     */
     private fun comment(over: Int): String? {
-        val all = groupPhrases(mode == HeckleMode.NICE, closing = false, over = over) +
-            (if (mode.harsh) ClipLines.facts(over, limit).filter { VoicePack.has(it) } else emptyList()) +
+        val maxPile = ClipLines.maxPile(over, System.currentTimeMillis() - overSince)
+        val facts = if (mode.harsh) ClipLines.facts(over, limit).filter { VoicePack.has(it) } else emptyList()
+        val phrases = groupPhrases(mode == HeckleMode.NICE, closing = false, over = over) +
             // Brutal: de egna förolämpningarna dubbelt så ofta som de vanliga elaka.
             (if (mode == HeckleMode.BRUTAL) brutalPhrases(closing = false) else emptyList())
+        val weighted = phrases.map { it to ClipLines.pileWeight(it, maxPile) }.filter { it.second > 0 } +
+            facts.map { it to 3 }
+        // Finns inget som passar (t.ex. bara grova inspelade): hellre en grövre än ingen alls.
+        val all = weighted.ifEmpty { phrases.map { it to 1 } }
         val nyss = recent.takeLast((all.size - 1).coerceIn(0, 6)) // aldrig samma två gånger i rad om det finns fler
-        val fresh = all.filter { it !in nyss }.ifEmpty { all }
-        val pick = fresh.randomOrNull() ?: return null
+        val fresh = all.filter { it.first !in nyss }.ifEmpty { all }
+        val pick = ClipLines.pickWeighted(fresh) ?: return null
         recent.addLast(pick)
         while (recent.size > 6) recent.removeFirst()
         return pick
