@@ -26,7 +26,6 @@
 8 | Grannarna tittar. Och de skriver upp registreringsnumret.
 8 | Hoppas du hinner bromsa för katten.
 8 | Det här är ingen motorväg, även om du verkar tro det.
-8 | Skolbarn hinner inte undan i hundra.
 8 | Nästa farthinder kommer att göra ont. Bra.
 8 | Du kör som om du ägde gatan. Det gör du inte.
 8 | I den här farten blir en fotgängare en olycka, inte en incident.
@@ -297,3 +296,5 @@
 ## Tätort rödjus
 8 | Du sparar typ tre sekunder till nästa rödjus. Grattis.
 8 | Rödjuset där framme väntar på dig ändå.
+## Tätort skolbarn
+8 | Skolbarn hinner inte undan i hundra.

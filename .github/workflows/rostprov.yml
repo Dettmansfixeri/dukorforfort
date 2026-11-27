@@ -45,7 +45,7 @@ on:
       grupper:
         description: "Bara de här grupperna ur fraslistan (tomt = alla)"
         required: false
-        default: "Mer snällt beröm, Glöm det, Snäll glöm det, Brutal, Tätort rödjus"
+        default: "GPS, Mer snällt beröm, Glöm det, Snäll glöm det, Brutal, Tätort rödjus, Tätort skolbarn, 40-väg, 50-väg, 60-väg, 70-väg, 80-väg, 90-väg, 100-väg, 110-väg, 120-väg"
       fraser:
         description: "Fraser (| emellan)"
         default: "Det här kostar dig ett tusen femhundra kronor i böter.|Det här kostar dig två tusen kronor i böter.|Det här kostar dig två tusen fyrahundra kronor i böter.|Det här kostar dig två tusen åttahundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter.|Det här kostar dig tre tusen sexhundra kronor i böter.|Det här kostar dig tre tusen tvåhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig tre tusen sexhundra kronor i böter. Plus busskort i minst två månader.|Det här kostar dig fyra tusen kronor i böter. Plus busskort i minst två månader."
