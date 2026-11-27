@@ -27,6 +27,8 @@ jobs:
         working-directory: DuKorForFort
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 100   # historiken behövs för ändringslistan (commitarna sedan förra bygget)
 
       - uses: actions/setup-java@v4
         with:
@@ -80,6 +82,7 @@ jobs:
       # utan att fråga GitHubs API (som har en gräns per besökare).
       - name: Berätta för webbsidan
         env:
+          BEFORE: ${{ github.event.before }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
@@ -90,14 +93,18 @@ jobs:
           # Går något fel med listan publiceras appen ändå (utan lista); felet hamnar i fältet "fel".
           HEAD_MSG=$(git log -1 --format=%s 2>/dev/null || echo "Ny version")
           ERR=""
-          NEW=$(jq -c --arg v "$VERSION" --arg head "$HEAD_MSG" '
-            [ (.commits // [])[]
-              | select([((.added // []) + (.modified // []) + (.removed // []))[] | strings | startswith("DuKorForFort/")] | any)
-              | [(.message // "") | split("\n")[] | select(startswith("Co-Authored-By") | not)] as $l
+          # Commitarna i den här pushen som ändrat appen (mappen vi står i), ur git-historiken.
+          if [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then RANGE=("$BEFORE..$GITHUB_SHA")
+          else RANGE=(-1 "$GITHUB_SHA"); fi
+          git log --format='%x1e%B' "${RANGE[@]}" -- . > "$RUNNER_TEMP/commits.txt" 2>"$RUNNER_TEMP/git1.txt" \
+            || ERR="git: $(head -c 300 "$RUNNER_TEMP/git1.txt")"
+          NEW=$(jq -Rsc --arg v "$VERSION" --arg head "$HEAD_MSG" '
+            [ split("\u001e")[] | select(test("\\S"))
+              | [split("\n")[] | select(startswith("Co-Authored-By") | not)] as $l
               | [$l[] | select(startswith("- ")) | .[2:]] as $b
               | if ($b | length) > 0 then $b[] else ($l[0] // empty) end ]
             | if length == 0 then [$head] else . end
-            | {v: $v, c: .}' "$GITHUB_EVENT_PATH" 2>"$RUNNER_TEMP/jq1.txt") || ERR="lista: $(head -c 300 "$RUNNER_TEMP/jq1.txt")"
+            | {v: $v, c: .}' "$RUNNER_TEMP/commits.txt" 2>"$RUNNER_TEMP/jq1.txt") || ERR="$ERR lista: $(head -c 300 "$RUNNER_TEMP/jq1.txt")"
           [ -n "$NEW" ] || NEW=$(jq -nc --arg v "$VERSION" --arg h "$HEAD_MSG" '{v: $v, c: [$h]}')
           OLD=$(curl -sf --max-time 20 https://dukorforfort.dettmansfixeri.se/app-version.json | jq -c '.changes // []' 2>/dev/null || true)
           [ -n "$OLD" ] || OLD='[]'
